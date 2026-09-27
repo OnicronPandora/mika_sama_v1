@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Spike C: Live2D</title>
+    <style>
+      html, body { margin: 0; height: 100%; background: #20242c; color: #e8e8e8; font: 14px system-ui, sans-serif; }
+      #stage { display: block; width: 100vw; height: 100vh; }
+      #panel { position: fixed; top: 12px; left: 12px; width: 320px; padding: 12px; border-radius: 8px; background: rgba(0, 0, 0, 0.6); }
+      #panel button { display: block; width: 100%; margin: 6px 0; padding: 6px; }
+      #status { white-space: pre-wrap; font: 12px ui-monospace, monospace; margin-top: 8px; }
+    </style>
+  </head>
+  <body>
+    <canvas id="stage"></canvas>
+    <div id="panel">
+      <strong>Spike C: Live2D</strong>
+      <button id="mouth-open">Hold mouth open (1.0)</button>
+      <button id="mouth-close">Close mouth (0.0)</button>
+      <button id="mouth-sine">Mouth sine wave (3 s)</button>
+      <button id="motion-tap">Play Tap motion</button>
+      <button id="play-sample">Play TTS sample with lipsync</button>
+      <div id="status">Loading…</div>
+    </div>
+    <!-- Cubism Core must be loaded before the app (Live2D Proprietary Software License). -->
+    <script src="/live2dcubismcore.min.js"></script>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
