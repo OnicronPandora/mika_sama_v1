@@ -216,3 +216,49 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# ============================================================
+# Mika-sama project rules (added on top of the Python template above)
+# Note: the template ignores every folder named lib/ (and lib64/). If the
+# frontend ever needs one, add an exception such as !mika/frontend/src/lib/
+# ============================================================
+
+# --- Python env created inside the project (conda create -p .conda) ---
+.conda/
+
+# --- Secrets (the template already ignores .env) ---
+.env.*
+!.env.example
+
+# --- Logs (the template already ignores *.log) ---
+logs/
+
+# --- Frontend ---
+node_modules/
+.vite/
+
+# --- Local assets (large, or under third-party licenses; each machine keeps its own copy) ---
+# others/ holds the Live2D model, the TTS voice model, reference audio and GenieData.
+others/
+GenieData/
+# Live2D model copied into a web app's public folder
+**/public/models/
+# Live2D Cubism Core: Live2D Proprietary Software License, downloaded by each developer
+**/public/live2dcubismcore*.js
+
+# --- Spike outputs (generated audio etc.) ---
+spikes/**/out/
+spikes/**/public/samples/
+
+# --- Agent skill library (local tooling, not project code) ---
+skills/
+.agent/
+.agents/
+
+# --- OS / editors ---
+.DS_Store
+Thumbs.db
+.idea/
+
+# --- Claude Code local settings ---
+.claude/settings.local.json

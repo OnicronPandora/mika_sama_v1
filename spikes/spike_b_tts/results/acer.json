@@ -1,0 +1,82 @@
+{
+  "env": {
+    "label": "acer",
+    "machine": "Windows-10-10.0.26200-SP0",
+    "cpu": "Intel64 Family 6 Model 154 Stepping 3, GenuineIntel",
+    "logical_cpus": 12,
+    "python": "3.11.9",
+    "onnxruntime": "1.22.1",
+    "providers": [
+      "AzureExecutionProvider",
+      "CPUExecutionProvider"
+    ],
+    "load_s": 10.78,
+    "warmup_s": 2.61
+  },
+  "sentences": [
+    {
+      "text": "Hi everyone!",
+      "words": 2,
+      "audio_s": 1.24,
+      "synth_s": 1.53,
+      "first_chunk_s": 1.53,
+      "rtf": 1.232
+    },
+    {
+      "text": "Welcome back to the stream.",
+      "words": 5,
+      "audio_s": 1.56,
+      "synth_s": 1.62,
+      "first_chunk_s": 1.62,
+      "rtf": 1.04
+    },
+    {
+      "text": "Oh no, did your cat really knock the coffee off the desk again?",
+      "words": 13,
+      "audio_s": 3.56,
+      "synth_s": 3.2,
+      "first_chunk_s": 3.2,
+      "rtf": 0.897
+    },
+    {
+      "text": "The sky looks blue because tiny particles in the air scatter blue light more than red light.",
+      "words": 17,
+      "audio_s": 5.36,
+      "synth_s": 4.77,
+      "first_chunk_s": 4.77,
+      "rtf": 0.89
+    },
+    {
+      "text": "Hmm, I'm a little confused, can you say that one more time?",
+      "words": 12,
+      "audio_s": 3.6,
+      "synth_s": 3.08,
+      "first_chunk_s": 3.08,
+      "rtf": 0.854
+    },
+    {
+      "text": "People who are mean in chat make me sad, but I know most of you are really kind.",
+      "words": 18,
+      "audio_s": 4.4,
+      "synth_s": 3.72,
+      "first_chunk_s": 3.72,
+      "rtf": 0.846
+    },
+    {
+      "text": "Okay, let's play one more round and then we'll take a short break.",
+      "words": 13,
+      "audio_s": 3.48,
+      "synth_s": 3.1,
+      "first_chunk_s": 3.1,
+      "rtf": 0.891
+    },
+    {
+      "text": "Thank you so much for watching today, I had a lot of fun with all of you, see you next time!",
+      "words": 21,
+      "audio_s": 5.12,
+      "synth_s": 4.68,
+      "first_chunk_s": 4.68,
+      "rtf": 0.914
+    }
+  ]
+}

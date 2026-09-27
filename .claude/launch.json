@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "spike-c-live2d",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "spikes/spike_c_live2d", "run", "dev", "--", "--port", "5173", "--strictPort"],
+      "port": 5173
+    }
+  ]
+}
