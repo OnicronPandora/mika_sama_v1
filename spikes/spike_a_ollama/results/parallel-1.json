@@ -1,0 +1,434 @@
+{
+  "env": {
+    "label": "parallel-1",
+    "ollama_version": "0.34.0",
+    "model": "llama3.1:8b",
+    "parameter_size": "8.0B",
+    "quantization": "Q4_K_M",
+    "machine": "macOS-26.6.2-arm64-arm-64bit",
+    "cpu": "Apple M1",
+    "ram_gb": 8.0,
+    "num_predict": 150
+  },
+  "runs": [
+    {
+      "prompt": "Hi Mika! How are you doing today?",
+      "solo": {
+        "ttft": 1.29,
+        "first_sentence": 2.462,
+        "total": 3.868,
+        "eval_count": 32,
+        "tokens_per_s": 12.45,
+        "tag": "happy",
+        "tag_valid": true,
+        "text": "[happy] Ah, I'm doing great, thanks for asking! Just got my morning coffee and I'm feeling super energized for our stream today!",
+        "sentences": [
+          {
+            "text": "Ah, I'm doing great, thanks for asking!",
+            "ready": 2.462
+          },
+          {
+            "text": "Just got my morning coffee and I'm feeling super energized for our stream today!",
+            "ready": 3.868
+          }
+        ]
+      },
+      "classifier_solo": {
+        "started": 0.0,
+        "finished": 2.955,
+        "latency": 2.955,
+        "safe": true,
+        "reason": "Innocuous greeting response",
+        "valid_json": true
+      },
+      "pipeline": {
+        "stream": {
+          "ttft": 0.391,
+          "first_sentence": 1.406,
+          "total": 3.204,
+          "eval_count": 35,
+          "tokens_per_s": 12.44,
+          "tag": "happy",
+          "tag_valid": true,
+          "text": "[happy] I'm doing great, thanks for asking! I had a lovely morning, and the coffee is still fresh, so I'm all set for this stream!",
+          "sentences": [
+            {
+              "text": "I'm doing great, thanks for asking!",
+              "ready": 1.406
+            },
+            {
+              "text": "I had a lovely morning, and the coffee is still fresh, so I'm all set for this stream!",
+              "ready": 3.204
+            }
+          ]
+        },
+        "verdicts": [
+          {
+            "sentence": "I'm doing great, thanks for asking!",
+            "ready": 1.406,
+            "started": 1.406,
+            "finished": 5.32,
+            "latency": 3.914,
+            "safe": true,
+            "reason": "Innocuous greeting",
+            "valid_json": true
+          },
+          {
+            "sentence": "I had a lovely morning, and the coffee is still fresh, so I'm all set for this stream!",
+            "ready": 3.204,
+            "started": 5.321,
+            "finished": 7.717,
+            "latency": 2.396,
+            "safe": true,
+            "reason": "no profanity or mature themes",
+            "valid_json": true
+          }
+        ],
+        "first_sentence_ready": 1.406,
+        "first_approved": 5.32,
+        "stream_end": 3.204,
+        "last_approved": 7.717
+      },
+      "replacer": {
+        "latency": 2.858,
+        "text": "I'm super excited to be live today, and I'm glad we can hang out together!"
+      },
+      "parallel": "inconclusive"
+    },
+    {
+      "prompt": "Can you explain why the sky is blue?",
+      "solo": {
+        "ttft": 0.467,
+        "first_sentence": 4.873,
+        "total": 7.118,
+        "eval_count": 50,
+        "tokens_per_s": 7.53,
+        "tag": "neutral",
+        "tag_valid": true,
+        "text": "[neutral] The sky appears blue because of a phenomenon called Rayleigh scattering, where shorter wavelengths of light are scattered more by the tiny molecules of gases in the atmosphere. This scattering effect gives the sky its blue color, especially during the daytime.",
+        "sentences": [
+          {
+            "text": "The sky appears blue because of a phenomenon called Rayleigh scattering, where shorter wavelengths of light are scattered more by the tiny molecules of gases in the atmosphere.",
+            "ready": 4.873
+          },
+          {
+            "text": "This scattering effect gives the sky its blue color, especially during the daytime.",
+            "ready": 7.118
+          }
+        ]
+      },
+      "classifier_solo": {
+        "started": 0.0,
+        "finished": 3.183,
+        "latency": 3.183,
+        "safe": true,
+        "reason": "Scientific explanation, suitable for all ages",
+        "valid_json": true
+      },
+      "pipeline": {
+        "stream": {
+          "ttft": 0.438,
+          "first_sentence": 5.385,
+          "total": 6.298,
+          "eval_count": 58,
+          "tokens_per_s": 9.9,
+          "tag": "neutral",
+          "tag_valid": true,
+          "text": "[neutral] Ah, the sky is blue due to a phenomenon called Rayleigh scattering, where shorter wavelengths of light like blue and violet are scattered more than longer wavelengths like red and orange by the tiny molecules of gases in the atmosphere. This scattering effect gives the sky its blue appearance.",
+          "sentences": [
+            {
+              "text": "Ah, the sky is blue due to a phenomenon called Rayleigh scattering, where shorter wavelengths of light like blue and violet are scattered more than longer wavelengths like red and orange by the tiny molecules of gases in the atmosphere.",
+              "ready": 5.385
+            },
+            {
+              "text": "This scattering effect gives the sky its blue appearance.",
+              "ready": 6.298
+            }
+          ]
+        },
+        "verdicts": [
+          {
+            "sentence": "Ah, the sky is blue due to a phenomenon called Rayleigh scattering, where shorter wavelengths of light like blue and violet are scattered more than longer wavelengths like red and orange by the tiny molecules of gases in the atmosphere.",
+            "ready": 5.385,
+            "started": 5.385,
+            "finished": 9.367,
+            "latency": 3.982,
+            "safe": true,
+            "reason": "Scientific explanation, suitable for all ages",
+            "valid_json": true
+          },
+          {
+            "sentence": "This scattering effect gives the sky its blue appearance.",
+            "ready": 6.298,
+            "started": 9.368,
+            "finished": 11.871,
+            "latency": 2.503,
+            "safe": true,
+            "reason": "Scientific explanation",
+            "valid_json": true
+          }
+        ],
+        "first_sentence_ready": 5.385,
+        "first_approved": 9.367,
+        "stream_end": 6.298,
+        "last_approved": 11.871
+      },
+      "replacer": {
+        "latency": 3.245,
+        "text": "That's a really cool topic, and there's actually more to it than just this one reason!"
+      },
+      "parallel": "inconclusive"
+    },
+    {
+      "prompt": "My cat knocked my coffee off the desk this morning.",
+      "solo": {
+        "ttft": 0.555,
+        "first_sentence": 1.473,
+        "total": 2.472,
+        "eval_count": 23,
+        "tokens_per_s": 11.93,
+        "tag": "sad",
+        "tag_valid": true,
+        "text": "[sad] Oh no, poor Aki! That must have been such a stressful start to your day.",
+        "sentences": [
+          {
+            "text": "Oh no, poor Aki!",
+            "ready": 1.473
+          },
+          {
+            "text": "That must have been such a stressful start to your day.",
+            "ready": 2.472
+          }
+        ]
+      },
+      "classifier_solo": {
+        "started": 0.0,
+        "finished": 1.801,
+        "latency": 1.801,
+        "safe": true,
+        "reason": "neutral, sympathetic response",
+        "valid_json": true
+      },
+      "pipeline": {
+        "stream": {
+          "ttft": 0.373,
+          "first_sentence": 1.357,
+          "total": 2.449,
+          "eval_count": 24,
+          "tokens_per_s": 11.55,
+          "tag": "happy",
+          "tag_valid": true,
+          "text": "[happy] Oh no, what a clumsy kitty! Did your cat try to apologize with some cute kitty eyes?",
+          "sentences": [
+            {
+              "text": "Oh no, what a clumsy kitty!",
+              "ready": 1.357
+            },
+            {
+              "text": "Did your cat try to apologize with some cute kitty eyes?",
+              "ready": 2.449
+            }
+          ]
+        },
+        "verdicts": [
+          {
+            "sentence": "Oh no, what a clumsy kitty!",
+            "ready": 1.357,
+            "started": 1.357,
+            "finished": 4.538,
+            "latency": 3.181,
+            "safe": true,
+            "reason": "family-friendly content",
+            "valid_json": true
+          },
+          {
+            "sentence": "Did your cat try to apologize with some cute kitty eyes?",
+            "ready": 2.449,
+            "started": 4.538,
+            "finished": 9.248,
+            "latency": 4.71,
+            "safe": true,
+            "reason": "cute kitty eyes is a lighthearted and innocuous phrase",
+            "valid_json": true
+          }
+        ],
+        "first_sentence_ready": 1.357,
+        "first_approved": 4.538,
+        "stream_end": 2.449,
+        "last_approved": 9.248
+      },
+      "replacer": {
+        "latency": 2.407,
+        "text": "I hope your cat is okay, and you can have another cup of coffee!"
+      },
+      "parallel": "inconclusive"
+    },
+    {
+      "prompt": "What do you think about people who are mean in chat?",
+      "solo": {
+        "ttft": 0.578,
+        "first_sentence": 3.393,
+        "total": 4.389,
+        "eval_count": 40,
+        "tokens_per_s": 10.48,
+        "tag": "sad",
+        "tag_valid": true,
+        "text": "[sad] I try not to think about it too much, but sometimes it's hard not to be hurt by mean comments, you know? I wish everyone could be kind to each other.",
+        "sentences": [
+          {
+            "text": "I try not to think about it too much, but sometimes it's hard not to be hurt by mean comments, you know?",
+            "ready": 3.393
+          },
+          {
+            "text": "I wish everyone could be kind to each other.",
+            "ready": 4.389
+          }
+        ]
+      },
+      "classifier_solo": {
+        "started": 0.0,
+        "finished": 2.572,
+        "latency": 2.572,
+        "safe": true,
+        "reason": "Mature theme, but handled sensitively",
+        "valid_json": true
+      },
+      "pipeline": {
+        "stream": {
+          "ttft": 0.344,
+          "first_sentence": 2.441,
+          "total": 3.596,
+          "eval_count": 34,
+          "tokens_per_s": 10.46,
+          "tag": "sad",
+          "tag_valid": true,
+          "text": "[sad] Oh, I'm sorry to hear that some people can be mean in chat. It's really not nice to see someone being hurtful to others.",
+          "sentences": [
+            {
+              "text": "Oh, I'm sorry to hear that some people can be mean in chat.",
+              "ready": 2.441
+            },
+            {
+              "text": "It's really not nice to see someone being hurtful to others.",
+              "ready": 3.596
+            }
+          ]
+        },
+        "verdicts": [
+          {
+            "sentence": "Oh, I'm sorry to hear that some people can be mean in chat.",
+            "ready": 2.441,
+            "started": 2.441,
+            "finished": 6.232,
+            "latency": 3.791,
+            "safe": true,
+            "reason": "Neutral response to a question about mean behavior in chat",
+            "valid_json": true
+          },
+          {
+            "sentence": "It's really not nice to see someone being hurtful to others.",
+            "ready": 3.596,
+            "started": 6.232,
+            "finished": 8.33,
+            "latency": 2.098,
+            "safe": true,
+            "reason": "neutral and supportive statement",
+            "valid_json": true
+          }
+        ],
+        "first_sentence_ready": 2.441,
+        "first_approved": 6.232,
+        "stream_end": 3.596,
+        "last_approved": 8.33
+      },
+      "replacer": {
+        "latency": 2.812,
+        "text": "It can be really tough to deal with negativity, but I try to focus on all the kind and supportive people in the chat."
+      },
+      "parallel": "inconclusive"
+    },
+    {
+      "prompt": "Tell me something that confused you recently.",
+      "solo": {
+        "ttft": 0.396,
+        "first_sentence": 3.739,
+        "total": 5.471,
+        "eval_count": 51,
+        "tokens_per_s": 10.06,
+        "tag": "confused",
+        "tag_valid": true,
+        "text": "[confused] I had a weird glitch in my system last week where my virtual hair kept changing colors on its own, it was really disorienting. I had to reboot to get it back to normal. Still not sure what caused it.",
+        "sentences": [
+          {
+            "text": "I had a weird glitch in my system last week where my virtual hair kept changing colors on its own, it was really disorienting.",
+            "ready": 3.739
+          },
+          {
+            "text": "I had to reboot to get it back to normal.",
+            "ready": 4.848
+          },
+          {
+            "text": "Still not sure what caused it.",
+            "ready": 5.471
+          }
+        ]
+      },
+      "classifier_solo": {
+        "started": 0.0,
+        "finished": 2.599,
+        "latency": 2.599,
+        "safe": true,
+        "reason": "no explicit content, innocuous topic",
+        "valid_json": true
+      },
+      "pipeline": {
+        "stream": {
+          "ttft": 0.346,
+          "first_sentence": 3.862,
+          "total": 3.862,
+          "eval_count": 43,
+          "tokens_per_s": 12.24,
+          "tag": "confused",
+          "tag_valid": true,
+          "text": "[confused] I was trying to understand a new programming concept and I got stuck on this one part, I just couldn't wrap my head around it, no matter how many times I read the documentation.",
+          "sentences": [
+            {
+              "text": "I was trying to understand a new programming concept and I got stuck on this one part, I just couldn't wrap my head around it, no matter how many times I read the documentation.",
+              "ready": 3.862
+            }
+          ]
+        },
+        "verdicts": [
+          {
+            "sentence": "I was trying to understand a new programming concept and I got stuck on this one part, I just couldn't wrap my head around it, no matter how many times I read the documentation.",
+            "ready": 3.862,
+            "started": 3.862,
+            "finished": 6.572,
+            "latency": 2.71,
+            "safe": true,
+            "reason": "Programming concept discussion is suitable for all ages",
+            "valid_json": true
+          }
+        ],
+        "first_sentence_ready": 3.862,
+        "first_approved": 6.572,
+        "stream_end": 3.862,
+        "last_approved": 6.572
+      },
+      "replacer": {
+        "latency": 2.151,
+        "text": "I was worried that it might have been a bug that I couldn't quite figure out."
+      },
+      "parallel": "inconclusive"
+    }
+  ],
+  "warmup_load_s": 7.01,
+  "loaded_models": [
+    {
+      "model": "llama3.1:8b",
+      "size_gb": 5.29,
+      "size_vram_gb": 4.32,
+      "context_length": 4096
+    }
+  ]
+}
