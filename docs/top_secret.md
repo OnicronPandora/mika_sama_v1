@@ -43,7 +43,7 @@
 - Database: Postgres (persistent data)
 - Data connect/query method: Using psycopg_pool (AsyncConnectionPool) from psycopg3 Python library (Require pip install psycopg and psycopg_pool)
 - Embedding Vector (RAG + RAR): Use pgvector Python Library + Retrieval-Augmented Reasoning Layer
-	+ Embedding model: nomic-embed-text (768 dimensions). Where it runs on the 8 GB Mac is still open (project_analysis.md, item #23).
+	+ Embedding model: nomic-embed-text (768 dimensions). It runs on the Mac's CPU inside the server process, not through Ollama, so it never unloads llama3.1:8b from the 8 GB Mac.
 - Message caching method: FIFO (First-In, First-Out)
 - Request message and receive message method/format: JSON
 - LLM system should be reused every time user requests to the server.
@@ -161,3 +161,4 @@
 | 2026-09-27 | Fine-tuning data is built from reply only. | — |
 | 2026-09-27 | STT: faster-whisper (CPU, int8) + silero-vad + RMS gate. | — |
 | 2026-09-27 | Audio chunks are base64 WAV inside JSON (v1). Admin uses user_id "admin". | — |
+| 2026-09-27 | Embeddings run on the Mac's CPU inside the server process, not through Ollama. | — |

@@ -15,9 +15,9 @@
 
 ## 2. Implementation Status
 
-**No application code exists yet.** Phase 0 of [implementation_plan.md](implementation_plan.md) is complete: the setup and three throwaway spikes exist, and their results are recorded in the plan. Phase 1 is next.
+**Phases 0 and 1 of [implementation_plan.md](implementation_plan.md) are complete.** The spikes are done (results in the plan), and the shared contracts exist. The server, client and frontend apps don't exist yet; Phase 2 is next.
 
-- `mika/` exists but is **empty**. An earlier version of this file described a full scaffold under `mika/`; that scaffold is not on disk.
+- `mika/` holds only the shared contracts so far: `mika/shared` (the `mika-shared` package with its tests) and the TypeScript types generated from it in `mika/frontend/src/types/events.ts`. An earlier version of this file described a full scaffold under `mika/`; that scaffold never existed on disk.
 - The folder is a **git repository** with remote [github.com/OnicronPandora/mika_sama_v1](https://github.com/OnicronPandora/mika_sama_v1) (MIT license). Work is pushed to `dev-mode`, and the admin merges it into `main` through a pull request. `.gitignore` is GitHub's Python template plus project rules that keep out `others/`, Cubism Core, `.conda/`, `node_modules/`, secrets, logs, and the local agent skill library (`skills/`, `.agent/`, `.agents/`).
 - The Acer has a project conda env at `.conda/` (Python 3.11.9) with `genie-tts` 2.0.2 and `ollama` 0.6.2.
 - `spikes/` holds the Phase 0 experiments; their results are recorded in the implementation plan.
@@ -40,7 +40,9 @@ mika_sama_project_v1/
 │   ├── Ouput Filter Protocol.md            # Output filter design
 │   └── STT System with VAD.md              # STT design + known deadlock
 │
-├── mika/                                   # EMPTY: no code yet
+├── mika/
+│   ├── shared/                             # mika-shared: enums, payloads, WS events, TS codegen, tests
+│   └── frontend/src/types/events.ts        # Generated from mika/shared (do not edit by hand)
 │
 ├── others/
 │   ├── 2D/miku_pro/                        # Live2D avatar (see 3.1)
@@ -210,6 +212,7 @@ sequenceDiagram
 | 18 | Filter | After a BLOCK, the replacement is spoken and the reply continues. |
 | 19 | Personality | v1 only reads `personality_traits`; automatic writing comes later. |
 | — | Ollama | `OLLAMA_NUM_PARALLEL=1` on the Mac (Phase 0, Spike A: the 8 GB M1 serves one request at a time). |
+| 23 | Embeddings | `nomic-embed-text` runs on the Mac's CPU inside the server process, not through Ollama, so it never unloads `llama3.1:8b`. |
 
 ### Handled during implementation (no decision needed)
 
@@ -224,7 +227,7 @@ sequenceDiagram
 
 | # | Area | Question |
 |---|------|----------|
-| 23 | Embeddings | Where does `nomic-embed-text` run on the 8 GB Mac? Through Ollama, it may unload `llama3.1:8b` (the LLM already takes 5.29 GB, with about 1 GB on the CPU), costing a 6–7 s reload on the next message. Options: (a) run it through Ollama and measure whether both models stay loaded; (b) run the same model (still 768 dimensions) on the Mac's CPU inside the server process. Decide before Phase 2. |
+| — | — | Nothing open. New questions get added here as they come up. |
 
 ### Deferred (after the core works)
 
