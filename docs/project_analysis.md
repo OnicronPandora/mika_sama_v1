@@ -18,7 +18,7 @@
 **No application code exists yet.** Phase 0 of [implementation_plan.md](implementation_plan.md) is in progress: only the setup and three throwaway spikes exist.
 
 - `mika/` exists but is **empty**. An earlier version of this file described a full scaffold under `mika/`; that scaffold is not on disk.
-- The folder is a **git repository** (branch `main`, local only until a GitHub remote is added). `.gitignore` keeps out `others/`, Cubism Core, `.conda/`, `node_modules/`, secrets, logs, and the local agent skill library (`skills/`, `.agent/`, `.agents/`).
+- The folder is a **git repository** with remote [github.com/OnicronPandora/mika_sama_v1](https://github.com/OnicronPandora/mika_sama_v1) (MIT license). Work is pushed to `dev-mode`, and the admin merges it into `main` through a pull request. `.gitignore` is GitHub's Python template plus project rules that keep out `others/`, Cubism Core, `.conda/`, `node_modules/`, secrets, logs, and the local agent skill library (`skills/`, `.agent/`, `.agents/`).
 - The Acer has a project conda env at `.conda/` (Python 3.11.9) with `genie-tts` 2.0.2 and `ollama` 0.6.2.
 - `spikes/` holds the Phase 0 experiments; their results are recorded in the implementation plan.
 
@@ -210,7 +210,7 @@ sequenceDiagram
 | 9 | Async | The deadlock and swallowed `CancelledError` are likely the same bug. Re-raise `CancelledError`, stop tasks with `task.cancel()`/sentinels, use `asyncio.TaskGroup` / `asyncio.timeout()` instead of a polling loop. |
 | 10 | Schema | Use `Field(default_factory=dict)` for `personality`. |
 | 11 | Security | Check the `Origin` header on `/ws/*` (CORS middleware does not cover WebSockets). |
-| 14 | Repo | `git init` done (2026-09-27); pushing to GitHub waits for the repo URL. |
+| 14 | Repo | Done (2026-09-27): pushed to `dev-mode` on GitHub; merged into `main` through a pull request. |
 
 ### Still open
 

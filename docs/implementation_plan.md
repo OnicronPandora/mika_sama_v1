@@ -165,7 +165,7 @@ Each phase ends with a check that proves it works.
 
 | Step | Status | Result |
 |------|--------|--------|
-| 1. Git | Done locally | Repo on `main` with `.gitignore`. Pushing waits for the GitHub repo URL. |
+| 1. Git | Done | [github.com/OnicronPandora/mika_sama_v1](https://github.com/OnicronPandora/mika_sama_v1). Work is pushed to `dev-mode`, and the admin merges it into `main` through a pull request. `.gitignore` = GitHub's Python template + project rules. |
 | 2. Environments | Acer done, Mac pending | Acer: `.conda` (Python 3.11.9 from conda-forge), Node 24.12, npm 11.7. Mac: commands in [spikes/README.md](../spikes/README.md). |
 | A. Ollama on the M1 | **Waiting: run on the Mac** | Script ready and tested against Ollama 0.34.2 on the Acer (`llama3:latest` on CPU; those timings don't represent the M1). |
 | B. GenieTTS on the Acer | Done | Median real-time factor **0.89**: keeps up, with about 10% headroom. |
