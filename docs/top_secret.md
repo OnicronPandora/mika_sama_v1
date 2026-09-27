@@ -43,6 +43,7 @@
 - Database: Postgres (persistent data)
 - Data connect/query method: Using psycopg_pool (AsyncConnectionPool) from psycopg3 Python library (Require pip install psycopg and psycopg_pool)
 - Embedding Vector (RAG + RAR): Use pgvector Python Library + Retrieval-Augmented Reasoning Layer
+	+ Embedding model: nomic-embed-text (768 dimensions). Where it runs on the 8 GB Mac is still open (project_analysis.md, item #23).
 - Message caching method: FIFO (First-In, First-Out)
 - Request message and receive message method/format: JSON
 - LLM system should be reused every time user requests to the server.
@@ -54,6 +55,7 @@
 - Server/System State schema: shutting_down, client_status, service_status, personality (Use Field(dict)), current_emotion
 - Request payload (Acer -> Mac): user_id, message
 	+ The client sends nothing else. The server builds history (from the FIFO cache), rag_context (from pgvector) and the personality prompt itself.
+	+ Admin messages (chatbox and voice) use the fixed user_id "admin".
 - Response payload: intent, emotion, reply, original_reply, action
 	+ reply = what was actually spoken (after filtering), original_reply = raw LLM output, action = FilterAction
 - Database schema: 
@@ -66,9 +68,9 @@
 - Main features: Streaming Token Process, Intent Detector, Emotion Manager, Personality Prompt Engine, Response Output Protocol.
 - LLM API used: Ollama
 - LLM model: Llama3.1:8b
-- Intent Detector Method: Self-supervised
+- Intent Detector Method: set by the system, not the LLM. filter_incident if any sentence of the reply was not ALLOW, error_recovery if the turn hit an error or timeout, otherwise casual_conversation.
 - Text Inference Method: Self-supervised 
-- LLM configuration: temperature=0.7, num_predict=400
+- LLM configuration: temperature=0.7, num_predict=150 (spoken replies)
 - Startup method: use startup/lifespan function to load the model with Personality Prompt Engine when starting up the server.
 - System configuration (Python): SERVER_WS_URL, VOICE_MODEL, REF_VOICE_PATH, REF_TEXT
 - ENV configuration: DB_NAME, DB_USER, DB_PASSWORD, DB_HOST, DB_PORT
@@ -89,14 +91,17 @@
 	+ Half-duplex: STT is muted while Mika speaks, so she never transcribes her own voice.
 	+ Because audio plays in the browser, the browser reports playback back to the Acer over /ws/chat (playback started / playback finished). The Acer mutes STT from the start of a reply until the browser reports that the reply's last audio chunk has finished.
 	+ Interrupting Mika while she speaks is out of scope for v1.
+	+ Transcription: faster-whisper on CPU (int8). Voice activity: silero-vad, with RMS as a noise gate.
 - TTS Engine: Use GenieTTS for CPU performance.
 - Audio and lipsync:
 	+ The Acer synthesizes each approved sentence with GenieTTS and sends the audio chunk, together with its sentence text and a sequence number, to the browser over /ws/chat.
+	+ Audio chunks travel as WAV, base64-encoded inside JSON messages (v1).
 	+ The browser queues the chunks in order, plays them with the Web Audio API, and drives ParamMouthOpenY from the playing audio's amplitude.
 	+ The transcript overlay shows each sentence when its audio starts playing.
 	+ In OBS, the avatar page is a browser source with "Control audio via OBS" enabled, so the stream captures the audio.
 - Personality Prompt Engine: The root personality file (YAML) load into the LLM system when startup, and it can be used as a basic personality to be appended by any classification as it needed.
 	+ Two layers: the YAML core_identity is fixed. Traits Mika develops over time are stored in the personality_traits table and appended to the prompt after the YAML. This is how "let it develop its own personality" is met without changing the core.
+	+ v1 only reads personality_traits; the admin can insert rows by hand. Writing new traits automatically comes later.
 
 
 - Output Filter Protocol (FilterAction):
@@ -109,10 +114,13 @@
 	+ Hard rules (prohibited words file) -> BLOCK.
 	+ AI Classifier -> REPLACE. It uses llama3.1:8b and judges each sentence with context: the user's message, recent history and the reply so far. The extra latency is accepted.
 	+ BLOCK replacement: a second llama3.1:8b call generates the safe replacement sentence. The replacement is checked by the filter again before it is spoken.
+	+ If the AI Classifier times out or returns invalid output, the sentence is treated as unsafe (REPLACE).
+	+ After a BLOCK, the replacement is spoken and the rest of the reply keeps going through the filter.
 
 
 - Conversation data collectting method: Secondary data + AI Response
 - Finetune method: Unsloth (Colab GPU method) (Later after collected 1000 conversations data)
+	+ The fine-tuning dataset is built from reply only, never original_reply.
 - Other features: Play game, singing, monitor vision inference.
 
 
@@ -145,3 +153,11 @@
 | 2026-09-27 | DB schema extended: chat_logs (+session_id, original_reply, filter_action, filter_reason), users (+username, platform), new memory_embeddings and personality_traits tables. | Old chat_logs / users schema |
 | 2026-09-27 | Personality has two layers: fixed YAML core + learned traits from the DB. | — |
 | 2026-09-27 | STT is half-duplex, driven by browser playback events. Interruption is deferred. | — |
+| 2026-09-27 | Intent is set by the system (filter_incident / error_recovery / casual_conversation), not by the LLM. | "Intent Detector Method: Self-supervised" |
+| 2026-09-27 | num_predict=150 for spoken replies. | num_predict=400 |
+| 2026-09-27 | Embedding model: nomic-embed-text, vector(768). | — |
+| 2026-09-27 | AI Classifier timeout or invalid output = unsafe (REPLACE). After a BLOCK, the reply continues. | — |
+| 2026-09-27 | v1 only reads personality_traits; automatic trait writing comes later. | — |
+| 2026-09-27 | Fine-tuning data is built from reply only. | — |
+| 2026-09-27 | STT: faster-whisper (CPU, int8) + silero-vad + RMS gate. | — |
+| 2026-09-27 | Audio chunks are base64 WAV inside JSON (v1). Admin uses user_id "admin". | — |
