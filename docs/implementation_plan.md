@@ -1,6 +1,6 @@
 # Mika-sama v1 — Implementation Plan
 
-> **Status: approved 2026-09-27. Phase 0 in progress** (Spikes B and C done, Spike A waiting to run on the Mac; see "Phase 0 results").
+> **Status: approved 2026-09-27. Phases 0 and 1 complete** (spikes done; shared contracts built and tested). Next: Phase 2.
 > Based on [top_secret.md](top_secret.md) as of 2026-09-27. If this plan and the spec disagree, the spec wins, and this plan gets fixed.
 
 ---
@@ -36,7 +36,7 @@ All defaults below were confirmed at review. Changing one later means updating t
 
 | Machine | Process | Port | Notes |
 |---------|---------|------|-------|
-| Mac M1 | Ollama | 11434 | `llama3.1:8b` + embedding model. `OLLAMA_NUM_PARALLEL` set from the Phase 0 spike. |
+| Mac M1 | Ollama | 11434 | `llama3.1:8b` only. `OLLAMA_NUM_PARALLEL=1`: the 8 GB M1 has no memory for a second slot (Spike A). Embeddings run on the CPU inside the server process (#23). |
 | Mac M1 | PostgreSQL + pgvector | 5432 | Local only; not exposed to the LAN. |
 | Mac M1 | Server (FastAPI, `/ws/runtime`) | 8000 | Only the Acer connects. |
 | Acer | Client (FastAPI, `/ws/chat`) | 8001 | Connects to the Mac as a WS client; serves `/ws/chat` to the browser. |
@@ -48,10 +48,15 @@ All defaults below were confirmed at review. Changing one later means updating t
 
 ```
 mika/
-├── shared/                     # Python package, installed in both envs (pip install -e)
-│   ├── enums.py                # Emotion, Intent, FilterAction
-│   ├── payloads.py             # UserRequest, TurnResult, FilterResult
-│   └── events.py               # All WS event models (section 5)
+├── shared/                     # Package "mika-shared", installed in both envs (pip install -e mika/shared)
+│   ├── pyproject.toml
+│   ├── mika_shared/
+│   │   ├── base.py             # Contract base model (immutable, unknown fields rejected), field types
+│   │   ├── enums.py            # Emotion, Intent, FilterAction + the small enums the events use
+│   │   ├── payloads.py         # UserRequest, FilterResult, TurnResult
+│   │   ├── events.py           # All WS event models (section 5) + one parser per channel direction
+│   │   └── codegen_ts.py       # Writes frontend/src/types/events.ts from the models
+│   └── tests/
 ├── server/                     # Mac M1
 │   ├── app/
 │   │   ├── main.py             # FastAPI app, lifespan, shutdown
@@ -86,7 +91,7 @@ mika/
         ├── components/Live2DStage.tsx, TranscriptOverlay.tsx, Chatbox.tsx
         ├── audio/playbackQueue.ts, lipsync.ts
         ├── services/chatSocket.ts
-        └── types/events.ts     # Mirrors shared/events.py
+        └── types/events.ts     # Generated from mika_shared (do not edit by hand)
 ```
 
 The Live2D model is copied from `others/2D/miku_pro/runtime/` into `frontend/public/models/`, along with the new `.exp3.json` files.
@@ -95,18 +100,20 @@ The Live2D model is copied from `others/2D/miku_pro/runtime/` into `frontend/pub
 
 ## 5. Event Contracts
 
-These are the most important part of the plan. Every message is JSON with a `type` field and a `turn_id` wherever it belongs to a reply.
+These are the most important part of the plan. Every message is JSON with a `type` field and a `turn_id` wherever it belongs to a reply. The code lives in `mika/shared/mika_shared/events.py` (Phase 1); if a table below and the code disagree, fix one of them in the same change.
+
+Common rules: `seq` is 0-based. Text fields must not be blank (surrounding whitespace is trimmed). Turn ids are 1–64 characters of `A–Z a–z 0–9 _ -`. Unknown fields are rejected.
 
 ### 5.1 `/ws/runtime` (Acer ⇄ Mac)
 
 | Direction | `type` | Fields | Meaning |
 |-----------|--------|--------|---------|
 | Acer → Mac | `user_message` | `user_id`, `message`, `source` (`chat` / `voice`) | The only request payload. |
-| Acer → Mac | `client_status` | `status`, `detail` | Health updates (TTS ready, STT ready…). |
+| Acer → Mac | `client_status` | `component` (`tts` / `stt` / `avatar_page` / `admin_page`), `status` (`starting` / `ready` / `error` / `stopped`), `detail` (optional) | Health updates (TTS ready, STT ready…). |
 | Mac → Acer | `turn_start` | `turn_id`, `emotion` | Sent as soon as the emotion tag is parsed. |
 | Mac → Acer | `sentence` | `turn_id`, `seq`, `text`, `action` | One approved sentence, in order. |
-| Mac → Acer | `turn_end` | `turn_id`, `last_seq`, `intent` | No more sentences for this turn. |
-| Mac → Acer | `error` | `turn_id`, `message` | The turn failed; the Acer unmutes STT. |
+| Mac → Acer | `turn_end` | `turn_id`, `last_seq` (null if the turn produced no sentences), `intent` | No more sentences for this turn. |
+| Mac → Acer | `error` | `turn_id` (null if not tied to a turn), `message` | The turn failed; the Acer unmutes STT. |
 
 ### 5.2 `/ws/chat` (Browser ⇄ Acer)
 
@@ -115,7 +122,7 @@ These are the most important part of the plan. Every message is JSON with a `typ
 | Admin page → Acer | `admin_message` | `message` | The Acer wraps it as `user_message` with `user_id = "admin"`. |
 | Acer → Avatar page | `emotion` | `turn_id`, `emotion` | Switch expression. |
 | Acer → Avatar page | `audio_chunk` | `turn_id`, `seq`, `text`, `audio_b64`, `sample_rate` | One spoken sentence. |
-| Acer → Avatar page | `turn_end` | `turn_id`, `last_seq` | So the page knows when the reply is complete. |
+| Acer → Avatar page | `turn_end` | `turn_id`, `last_seq` (null if the turn produced no sentences) | So the page knows when the reply is complete. |
 | Avatar page → Acer | `playback_started` | `turn_id`, `seq` | |
 | Avatar page → Acer | `playback_finished` | `turn_id`, `seq` | When `seq == last_seq`, the Acer unmutes STT. |
 | Acer → Admin page | `transcript` | `role` (`admin` / `mika`), `text` | Chat log shown in the admin page. |
@@ -166,8 +173,8 @@ Each phase ends with a check that proves it works.
 | Step | Status | Result |
 |------|--------|--------|
 | 1. Git | Done | [github.com/OnicronPandora/mika_sama_v1](https://github.com/OnicronPandora/mika_sama_v1). Work is pushed to `dev-mode`, and the admin merges it into `main` through a pull request. `.gitignore` = GitHub's Python template + project rules. |
-| 2. Environments | Acer done, Mac pending | Acer: `.conda` (Python 3.11.9 from conda-forge), Node 24.12, npm 11.7. Mac: commands in [spikes/README.md](../spikes/README.md). |
-| A. Ollama on the M1 | **Waiting: run on the Mac** | Script ready and tested against Ollama 0.34.2 on the Acer (`llama3:latest` on CPU; those timings don't represent the M1). |
+| 2. Environments | Done | Acer: `.conda` (Python 3.11.9 from conda-forge), Node 24.12, npm 11.7. Mac: set up from [spikes/README.md](../spikes/README.md) and used for Spike A. |
+| A. Ollama on the M1 | Done | The 8 GB M1 serves **one request at a time**. The first sentence is approved after a median of 5.8 s (4.1–9.4 s). Accepted under decision #1, so no fallback is needed. |
 | B. GenieTTS on the Acer | Done | Median real-time factor **0.89**: keeps up, with about 10% headroom. |
 | C. Live2D in the browser | Done | Model renders; lipsync driven by audio volume works. |
 
@@ -196,13 +203,32 @@ Each phase ends with a check that proves it works.
   - Phase 9: a gain of 6 hits 1.0 at peaks, so tune the gain and smoothing. The override keeps its last value, so set it to 0 when audio ends. Idle motions then can't move the mouth, which is intended.
   - Phase 10: confirm OBS's browser source supports WebGL 2.
 
-**Spike A dry-run findings** (Acer, `llama3:latest`; functional check only):
-- The JSON-schema classifier returned valid output in 6/6 calls.
-- Emotion tag: 2/4 replies valid. Both misses began with a bare word and no brackets (`Happy Ah, I'm feeling…`), so "Happy" would have been spoken. `[Happy]` in capitals parsed fine. Phase 3 now covers this (below). The Mac run with `llama3.1:8b` will give the real rate.
+**Spike A (Mac M1, 8 GB RAM, macOS 26.6, Ollama 0.34.0, `llama3.1:8b` Q4_K_M):** [parallel-1](../spikes/spike_a_ollama/results/parallel-1.md), [parallel-2](../spikes/spike_a_ollama/results/parallel-2.md)
+- Memory: the model takes 5.29 GB, and only 4.32 GB of it fits on the GPU, so about 1 GB runs on the CPU. Context length is 4096 tokens. Generation runs at 10.5–12.5 tokens/s, and loading the model takes 6–7 s.
+- **Requests are served one at a time**, including in the `OLLAMA_NUM_PARALLEL=2` run:
+  - The script's own check reported "inconclusive" for all 10 runs, because Mika's replies were short (19–58 tokens; the stream finished after a median of 3.6 s).
+  - The raw timings settle it: a classification sent while the reply was still streaming took about (remaining stream time + its usual 2–3 s). Example: in `parallel-2` run 2 it was sent 2.5 s before the stream ended and took 4.1 s, against 1.9 s when run alone.
+  - Memory stayed at 5.29 GB with `OLLAMA_NUM_PARALLEL=2`. A second slot would add about 0.5 GB, so it was most likely never allocated, and the 8 GB Mac has no room for one anyway. **Decision: `OLLAMA_NUM_PARALLEL=1`.**
+- Latency, medians over all 10 runs:
+  - First sentence ready: 2.5 s.
+  - First sentence approved: 5.8 s (4.1–9.4 s).
+  - Each further sentence: about 2.4 s after the previous one.
+  - Replacer: about 2.6 s.
+- **Time until Mika starts speaking** = first approval + GenieTTS for the first sentence (1.5–3 s, Spike B) ≈ **8 s typical, 6–12 s range.** Accepted under decision #1.
+- After the first sentence, the next one is approved about 2.4 s later, while the previous one is still playing (3–5 s), so there are no gaps. The exception is right after very short sentences (under about 2.4 s of audio, such as "Hi everyone!").
+- The emotion tag was valid in **20/20** replies, and classifier JSON in **28/28** calls. In the earlier Acer dry-run with `llama3`, 2 of 4 replies began with a bare word (`Happy Ah, …`). That didn't happen with `llama3.1:8b`, but Phase 3 keeps the test.
+- Most of each classifier call goes into generating its free-text `reason` at about 11 tokens/s.
 
-### Phase 1 — Shared contracts
+Ways to cut the latency later (measured options, not decided):
+- Phase 3: merge sentences shorter than about 6 words into the next one. That means fewer classifier calls, less TTS overhead (short sentences run slower than real time, Spike B), and fewer pauses.
+- Phase 4: have the classifier return `reason` as a short code (`ok`, `sexual`, `violence`, `hate`, `self_harm`, `personal_info`, `other`) instead of free text. That should save about 1 s per sentence; measure it in Phase 4.
+- Later: let the Acer synthesize the first sentence while the Mac is still classifying it, and play it only if approved. That saves 1.5–3 s, but needs a contract change and sends unapproved text to the Acer.
+
+### Phase 1 — Shared contracts ✅ (2026-09-27)
 - Enums, payloads and every event from section 5 as Pydantic v2 models, plus the same types in `frontend/src/types/events.ts`.
 - **Done when:** round-trip tests (model → JSON → model) pass for every event.
+- **Result:** package `mika-shared` in `mika/shared` ([README](../mika/shared/README.md)). 41 tests pass: a JSON round trip for all 13 events, the per-channel event sets against section 5, rejection of wrong-direction/unknown/invalid events, and the `FilterResult` rules. The TypeScript types are generated from the Python models, and a test fails if the committed file is out of date. `tsc --strict` compiles them, with exhaustive `switch` narrowing on `type`.
+- Semantics fixed along the way (also in section 5): `client_status` names its `component`; `turn_end.last_seq` is null for a turn with no sentences; `error.turn_id` is null for errors outside a turn; a turn's `action` is its most severe sentence action (BLOCK over REPLACE over ALLOW); an ALLOW `FilterResult` has no `filter_response`, and REPLACE/BLOCK must have one.
 
 ### Phase 2 — Database and config
 - `setup_db.sql` with the schema from the spec (`vector(768)` per decision #15), plus indexes on `chat_logs(user_id, created_at)` and a vector index on `memory_embeddings`.
@@ -219,6 +245,7 @@ Each phase ends with a check that proves it works.
 
 ### Phase 5 — Memory, state, prompt builder
 - FIFO cache (bounded), RAG retrieval, history formatter (decision #2), state manager (`Field(default_factory=dict)`), intent rule (decision #4).
+- The whole prompt, plus room for `num_predict`, must fit in the 4096-token context (Spike A). A longer context needs memory the 8 GB Mac doesn't have.
 - **Done when:** a test builds the full prompt for a user with past filtered turns, and the output matches the expected text.
 
 ### Phase 6 — Server wiring
@@ -263,7 +290,8 @@ Each phase ends with a check that proves it works.
 
 | Risk | Impact | Mitigation |
 |------|--------|------------|
-| The M1 can't run the reply stream and the classifier in parallel (memory or speed) | Long silence before Mika speaks | Spike A in Phase 0, before any filter code is written |
+| The 8 GB M1 serves one request at a time (Spike A) | Mika starts speaking about 8 s after a message (6–12 s) | Accepted (decision #1). The latency options in the Phase 0 results can cut it later |
+| The 8 GB M1 is at its memory limit (model 5.29 GB, about 1 GB already on the CPU) | Loading the embedding model through Ollama may unload `llama3.1:8b` (6–7 s reload on the next message) | Resolved (#23): embeddings run on the CPU inside the server process. Pick the library in Phase 5 and check its memory use |
 | One classifier call per sentence, plus the replacer on BLOCK, all on the same 8B model | Latency (accepted) | Measure it in Spike A; keep strict timeouts |
 | GenieTTS only just keeps up on the Acer's CPU (Spike B: real-time factor 0.89) | Gaps between sentences if anything else uses the CPU | Synthesize ahead while the previous sentence plays; OBS on the Quick Sync hardware encoder; STT muted while Mika speaks; later, try more onnxruntime threads or a GPU provider |
 | `original_reply` in the prompt context (decision #2) | The LLM may repeat filtered content | Track the `filter_incident` rate in `chat_logs` |

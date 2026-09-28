@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mika-shared"
+version = "0.1.0"
+description = "Contracts shared by the Mika-sama server (Mac), client (Acer) and frontend"
+requires-python = ">=3.11"
+dependencies = ["pydantic>=2.7,<3"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
+[tool.setuptools]
+packages = ["mika_shared"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
