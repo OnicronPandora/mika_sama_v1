@@ -23,7 +23,9 @@
   - `mika/frontend/src/types/events.ts`: the TypeScript types generated from `mika/shared`.
 
   An earlier version of this file described a full scaffold under `mika/`; that scaffold never existed on disk.
-- The Acer's database tests run against PostgreSQL 16 + pgvector 0.6.0 inside WSL Ubuntu, on port 5433. The Windows PostgreSQL 16 service on port 5432 belongs to other projects.
+- Databases:
+  - **Mac (the real one):** PostgreSQL 18 from the EnterpriseDB installer (`/Library/PostgreSQL/18`, port 5432), with pgvector 0.8.6 built from source. Databases `mika` and `mika_test`. Homebrew's `postgresql@17` was installed on 2026-09-30 but is unused and stopped.
+  - **Acer (tests):** PostgreSQL 16 + pgvector 0.6.0 inside WSL Ubuntu, on port 5433. The Windows PostgreSQL 16 service on port 5432 belongs to other projects.
 - The folder is a **git repository** with remote [github.com/OnicronPandora/mika_sama_v1](https://github.com/OnicronPandora/mika_sama_v1) (MIT license). Work is pushed to `dev-mode`, and the admin merges it into `main` through a pull request. `.gitignore` is GitHub's Python template plus project rules that keep out `others/`, Cubism Core, `.conda/`, `node_modules/`, secrets, logs, and the local agent skill library (`skills/`, `.agent/`, `.agents/`).
 - The Acer has a project conda env at `.conda/` (Python 3.11.9) with `genie-tts` 2.0.2, `ollama` 0.6.2, `mika-shared` (editable) and the server's requirements.
 - `spikes/` holds the Phase 0 experiments; their results are recorded in the implementation plan.

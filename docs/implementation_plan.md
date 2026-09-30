@@ -249,7 +249,7 @@ Ways to cut the latency later (measured options, not decided):
   - `personality_traits.source_chat_log_id` is null for traits the admin adds by hand.
   - `touch_user` creates a user on first contact and counts each interaction.
   - Tests only touch `TEST_DB_NAME`.
-- Setting up PostgreSQL + pgvector on the Mac is written up in the server README, but not yet tried on the Mac.
+- Verified on the Mac (2026-09-30): the tests pass against the EnterpriseDB PostgreSQL 18 with pgvector 0.8.6 built from source (see the server README). The Acer's WSL test database has pgvector 0.6.0 from Ubuntu; the features used here work on both.
 
 ### Phase 3 — LLM core
 - Personality loader (YAML + active traits), Ollama async streaming client (one shared client, reused per request), emotion tag parser, normalizer, sentence chunker.
