@@ -74,6 +74,7 @@
 - Startup method: use startup/lifespan function to load the model with Personality Prompt Engine when starting up the server.
 - System configuration (Python): SERVER_WS_URL, VOICE_MODEL, REF_VOICE_PATH, REF_TEXT
 - ENV configuration: DB_NAME, DB_USER, DB_PASSWORD, DB_HOST, DB_PORT
+	+ TEST_DB_NAME (optional): a separate database the tests may wipe. Never the real database.
 - YAML configuration: name, role, core_identity, guidelines
 
 
@@ -162,3 +163,4 @@
 | 2026-09-27 | STT: faster-whisper (CPU, int8) + silero-vad + RMS gate. | — |
 | 2026-09-27 | Audio chunks are base64 WAV inside JSON (v1). Admin uses user_id "admin". | — |
 | 2026-09-27 | Embeddings run on the Mac's CPU inside the server process, not through Ollama. | — |
+| 2026-09-30 | Database tests use a separate database named by TEST_DB_NAME. On the Acer it runs in WSL Ubuntu (PostgreSQL 16 + pgvector, port 5433). | — |

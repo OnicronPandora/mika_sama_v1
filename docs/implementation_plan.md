@@ -1,6 +1,6 @@
 # Mika-sama v1 — Implementation Plan
 
-> **Status: approved 2026-09-27. Phases 0 and 1 complete** (spikes done; shared contracts built and tested). Next: Phase 2.
+> **Status: approved 2026-09-27. Phases 0–2 complete** (spikes; shared contracts; database and config). Next: Phase 3.
 > Based on [top_secret.md](top_secret.md) as of 2026-09-27. If this plan and the spec disagree, the spec wins, and this plan gets fixed.
 
 ---
@@ -68,11 +68,12 @@ mika/
 │   │   ├── personality/        # engine.py (YAML + traits)
 │   │   ├── state/manager.py
 │   │   ├── turn/pipeline.py    # One turn end-to-end (section 6)
-│   │   └── db/                 # pool.py, queries.py
+│   │   └── db/                 # pool.py, schema.py, queries.py
 │   ├── data/                   # personality.yaml, prohibited_words.txt
-│   ├── scripts/setup_db.sql
+│   ├── scripts/                # setup_db.sql; setup_wsl_test_db.sh (Acer test database)
 │   ├── tests/
-│   ├── requirements.txt
+│   ├── requirements.txt, requirements-dev.txt, pytest.ini
+│   ├── README.md               # Setup on the Mac, test database on the Acer
 │   └── .env.example
 ├── client/                     # Acer
 │   ├── app/
@@ -230,10 +231,25 @@ Ways to cut the latency later (measured options, not decided):
 - **Result:** package `mika-shared` in `mika/shared` ([README](../mika/shared/README.md)). 41 tests pass: a JSON round trip for all 13 events, the per-channel event sets against section 5, rejection of wrong-direction/unknown/invalid events, and the `FilterResult` rules. The TypeScript types are generated from the Python models, and a test fails if the committed file is out of date. `tsc --strict` compiles them, with exhaustive `switch` narrowing on `type`.
 - Semantics fixed along the way (also in section 5): `client_status` names its `component`; `turn_end.last_seq` is null for a turn with no sentences; `error.turn_id` is null for errors outside a turn; a turn's `action` is its most severe sentence action (BLOCK over REPLACE over ALLOW); an ALLOW `FilterResult` has no `filter_response`, and REPLACE/BLOCK must have one.
 
-### Phase 2 — Database and config
+### Phase 2 — Database and config ✅ (2026-09-30)
 - `setup_db.sql` with the schema from the spec (`vector(768)` per decision #15), plus indexes on `chat_logs(user_id, created_at)` and a vector index on `memory_embeddings`.
 - `AsyncConnectionPool` opened and closed in the lifespan; the pgvector adapter registered; `.env.example`.
 - **Done when:** the script runs on a clean database, and a test inserts and reads back a `chat_logs` row and a nearest-neighbour search.
+- **Result:** [mika/server](../mika/server/README.md). 24 tests pass against PostgreSQL 16 + pgvector 0.6.0 in WSL on the Acer. Each database test gets a fresh schema, so the script is proven on a clean database every run. The tests cover:
+  - the tables, indexes and `vector(768)` column; re-running the script;
+  - the CHECK constraints against the shared enums;
+  - a `chat_logs` round trip; the user interaction count; the foreign keys;
+  - nearest-neighbour order and the embedding-size checks;
+  - opening and closing the pool in the lifespan; `/health`.
+- Also checked by hand: `python -m app.db.schema` against `mika_dev`, and `uvicorn app.main:app` answering `/health` with the database OK.
+- Choices made here:
+  - Enum columns are `TEXT` with CHECK constraints (easier to extend than PostgreSQL enum types).
+  - `session_id` is a `UUID`; `chat_logs.id` is a `BIGINT` identity.
+  - The vector index is HNSW with cosine distance.
+  - `personality_traits.source_chat_log_id` is null for traits the admin adds by hand.
+  - `touch_user` creates a user on first contact and counts each interaction.
+  - Tests only touch `TEST_DB_NAME`.
+- Setting up PostgreSQL + pgvector on the Mac is written up in the server README, but not yet tried on the Mac.
 
 ### Phase 3 — LLM core
 - Personality loader (YAML + active traits), Ollama async streaming client (one shared client, reused per request), emotion tag parser, normalizer, sentence chunker.

@@ -1,0 +1,8 @@
+# Server (Mac M1). Install the shared contracts first:  pip install -e mika/shared
+fastapi==0.141.1
+uvicorn[standard]==0.54.0
+psycopg[binary]==3.3.6
+psycopg-pool==3.3.3
+pgvector==0.5.0
+pydantic-settings==2.15.0
+numpy==2.4.6
