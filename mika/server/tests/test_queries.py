@@ -88,6 +88,13 @@ async def test_embedding_size_is_checked(db):
         await queries.nearest_memories(db, axis(0), limit=0)
 
 
+async def test_active_traits_oldest_first(db):
+    await db.execute("INSERT INTO personality_traits (trait) VALUES ('Loves rainy days')")
+    await db.execute("INSERT INTO personality_traits (trait, active) VALUES ('An old habit', false)")
+    await db.execute("INSERT INTO personality_traits (trait) VALUES ('Hates spiders')")
+    assert await queries.active_traits(db) == ["Loves rainy days", "Hates spiders"]
+
+
 async def test_deleting_a_chat_log_deletes_its_memories(db):
     log_id = await log_turn(db)
     await queries.insert_memory(db, chat_log_id=log_id, content="x", embedding=axis(0))

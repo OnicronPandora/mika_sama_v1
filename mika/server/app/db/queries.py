@@ -149,6 +149,12 @@ async def nearest_memories(
         return [MemoryMatch.model_validate(row) for row in await cur.fetchall()]
 
 
+async def active_traits(conn: AsyncConnection) -> list[str]:
+    """The traits Mika has learned and still holds, oldest first (the second personality layer)."""
+    cur = await conn.execute("SELECT trait FROM personality_traits WHERE active ORDER BY created_at, id")
+    return [trait for (trait,) in await cur.fetchall()]
+
+
 def _as_vector(embedding: Sequence[float] | np.ndarray) -> np.ndarray:
     vector = np.asarray(embedding, dtype=np.float32)
     if vector.shape != (EMBEDDING_DIM,):

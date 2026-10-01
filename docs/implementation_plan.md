@@ -1,6 +1,6 @@
 # Mika-sama v1 — Implementation Plan
 
-> **Status: approved 2026-09-27. Phases 0–2 complete** (spikes; shared contracts; database and config). Next: Phase 3.
+> **Status: approved 2026-09-27. Phases 0–3 complete** (spikes; shared contracts; database and config; LLM core). Next: Phase 4.
 > Based on [top_secret.md](top_secret.md) as of 2026-09-27. If this plan and the spec disagree, the spec wins, and this plan gets fixed.
 
 ---
@@ -62,7 +62,7 @@ mika/
 │   │   ├── main.py             # FastAPI app, lifespan, shutdown
 │   │   ├── config.py           # LLM + server config (Python)
 │   │   ├── api/ws_runtime.py
-│   │   ├── llm/                # engine.py (Ollama), tag_parser.py, chunker.py
+│   │   ├── llm/                # engine.py (Ollama), tag_parser.py, chunker.py, streaming.py, live.py (check)
 │   │   ├── filter/             # normalizer.py, hard_rules.py, ai_classifier.py, replacer.py, policy.py
 │   │   ├── memory/             # cache.py (FIFO), rag.py (pgvector), history.py (prompt formatting)
 │   │   ├── personality/        # engine.py (YAML + traits)
@@ -251,9 +251,18 @@ Ways to cut the latency later (measured options, not decided):
   - Tests only touch `TEST_DB_NAME`.
 - Verified on the Mac (2026-09-30): the tests pass against the EnterpriseDB PostgreSQL 18 with pgvector 0.8.6 built from source (see the server README). The Acer's WSL test database has pgvector 0.6.0 from Ubuntu; the features used here work on both.
 
-### Phase 3 — LLM core
+### Phase 3 — LLM core ✅ (2026-10-01)
 - Personality loader (YAML + active traits), Ollama async streaming client (one shared client, reused per request), emotion tag parser, normalizer, sentence chunker.
 - **Done when:** unit tests pass for the tag parser (missing, invalid, split across tokens, different capitalization, and a bare leading emotion word such as `Happy Ah, …`, which must be stripped so it isn't spoken) and the chunker (abbreviations, decimals, "...", end of stream). A script prints a live reply as tagged sentences.
+- **Result:** 165 server tests pass on the Acer, 141 of them new. The live script (`python -m app.llm.live`) printed a tagged reply sentence by sentence on the Acer (`llama3:latest` on CPU). The Mac run with `llama3.1:8b` is the user's.
+  - **Personality:** `data/personality.yaml` is the user-chosen merge of v21 (format, character, guidelines) and v54 (warmth, interests, "Ehehe~"). The prompt is three layers: YAML core → learned traits (`active_traits`) → reply rules (Spike A's wording, built from the `Emotion` enum).
+  - **Engine:** one `ollama.AsyncClient` with timeouts (5 s connect, 60 s between reply pieces), so a stalled Ollama can't hang the server. `keep_alive=-1` keeps the model loaded, and `load_model()` is there for the lifespan (Phase 6).
+  - **Tag parser:** holds back at most 40 characters and decides as soon as the tag closes. Accepts `[x]` in any case or spacing, `(x)` and `*x*`. A bare leading emotion word counts as a tag only before a separator (`Happy: …`, `Happy - …`) or a typical reply opener (`Happy Ah, …`), so "Happy birthday!" and "Happy New Year!" are spoken in full. Any other `[...]` at the start is removed as an invalid tag → neutral.
+  - **Normalizer** (`filter/normalizer.py`): removes `*stage directions*`, `**` markers and emoji; converts curly quotes, `…` and fullwidth characters to plain ones; turns dashes into commas; tidies spaces (none before punctuation). Spike A's 30 replies contained none of these, so this is a safety net.
+  - **Chunker:** splits on `.!?` followed by a new sentence. Abbreviations, initials, decimals and `...` don't split, and a lowercase word after a period continues the sentence. Sentences over 220 characters split at a comma.
+  - **Every stage gives the same result however the stream is chunked.** The tests feed each case whole and one character at a time, plus 200 random chunkings for the chunker.
+  - `app/llm/streaming.py` chains them (tag parser → normalizer → chunker) and yields the emotion first, then sentences.
+- To watch: the full personality makes the system prompt about 5 times longer than Spike A's. With one Ollama slot, the classifier calls in between mean that prompt is re-read on every turn. On the Acer's CPU the emotion arrived after 9.7 s; the Mac run of the live script shows the real cost on the M1.
 
 ### Phase 4 — Output filter
 - Hard rules (word-boundary matching after normalization), AI classifier, replacer, policy engine producing `FilterResult`.

@@ -48,6 +48,10 @@ class LLMSettings(BaseModel):
     model: str = "llama3.1:8b"
     temperature: float = 0.7
     num_predict: int = 150
+    # -1 keeps the model loaded while Ollama runs, so a quiet stream never pays the 6-7 s reload (Spike A).
+    keep_alive: float | str = -1
+    connect_timeout: float = 5.0
+    read_timeout: float = 60.0  # longest wait for the next piece of a reply before giving up
 
 
 class Settings(BaseModel):

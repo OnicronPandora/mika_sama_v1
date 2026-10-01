@@ -35,7 +35,10 @@ async def db(test_db: DatabaseSettings) -> AsyncIterator[AsyncConnection]:
     try:
         conn = await AsyncConnection.connect(test_db.conninfo(), autocommit=True, connect_timeout=5)
     except OperationalError as e:
-        pytest.fail(f"TEST_DB_NAME is set but the test database is unreachable: {e}")
+        pytest.fail(
+            f"TEST_DB_NAME is set but the test database is unreachable: {e}\n"
+            "On the Acer, start WSL Ubuntu first (wsl -d Ubuntu -e true); see mika/server/README.md."
+        )
     schema = f"test_{uuid4().hex[:12]}"
     async with conn:
         await conn.execute(f"CREATE SCHEMA {schema}")
