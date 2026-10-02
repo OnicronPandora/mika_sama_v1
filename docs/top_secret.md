@@ -164,3 +164,4 @@
 | 2026-09-27 | Audio chunks are base64 WAV inside JSON (v1). Admin uses user_id "admin". | — |
 | 2026-09-27 | Embeddings run on the Mac's CPU inside the server process, not through Ollama. | — |
 | 2026-09-30 | Database tests use a separate database named by TEST_DB_NAME. On the Acer it runs in WSL Ubuntu (PostgreSQL 16 + pgvector, port 5433). | — |
+| 2026-10-01 | Starting personality (mika/server/data/personality.yaml): the earlier v21 personality (character, guidelines) merged with v54 (warmth, interests, "Ehehe~" catchphrase). The reply-format rules (emotion tag, short spoken sentences) live in code, not in the YAML. | — |

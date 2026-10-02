@@ -1,8 +1,14 @@
 # Mika-sama server (Mac M1)
 
 The orchestrator: LLM, state, memory, database and output filter
-([implementation plan](../../docs/implementation_plan.md)). So far (Phase 2) it has the configuration,
-the PostgreSQL + pgvector database layer and a `/health` endpoint.
+([implementation plan](../../docs/implementation_plan.md)). So far (Phase 3) it has:
+- the configuration, the PostgreSQL + pgvector database layer and a `/health` endpoint;
+- Mika's personality (`data/personality.yaml`) and the system prompt built from it;
+- Ollama streaming, and the emotion tag parser, normalizer and sentence chunker that turn a reply into an
+  emotion and spoken sentences.
+
+Check a live reply (from `mika/server`, with Ollama running): `python -m app.llm.live "Hi Mika!"`.
+Add `--show-prompt` to see the full system prompt.
 
 Commands below run from the repo root unless they `cd` first, inside the project's `.conda` env.
 
