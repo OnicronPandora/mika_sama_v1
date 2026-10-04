@@ -81,5 +81,23 @@ class LLMEngine:
             if part.done and on_stats:
                 on_stats(ReplyStats.from_response(part))
 
+    async def complete(
+        self,
+        messages: Sequence[Mapping[str, str]],
+        *,
+        temperature: float,
+        num_predict: int,
+        json_schema: dict | None = None,
+    ) -> str:
+        """One whole reply without streaming, for the output filter's classifier and replacer calls."""
+        response = await self._client.chat(
+            model=self.settings.model,
+            messages=list(messages),
+            format=json_schema,
+            options={"temperature": temperature, "num_predict": num_predict},
+            keep_alive=self.settings.keep_alive,
+        )
+        return response.message.content or ""
+
     async def close(self) -> None:
         await self._client.close()

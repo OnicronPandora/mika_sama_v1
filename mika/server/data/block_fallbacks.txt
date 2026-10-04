@@ -1,0 +1,8 @@
+# The last-resort lines: what Mika says when a filtered sentence can't be replaced by a safe LLM-written one
+# (the replacement failed its own check, or the LLM timed out). Used for BLOCK, and after "Filtered!" for
+# REPLACE. One line per entry; when there are several, one is picked at random.
+# Blank lines and lines starting with # are ignored. The server needs at least one line.
+#
+# Pandora writes these (decision 2026-10-04). The line below is only a placeholder so the server works
+# until then: replace it.
+Hmm, let's talk about something else!

@@ -1,6 +1,6 @@
 # Mika-sama v1 — Implementation Plan
 
-> **Status: approved 2026-09-27. Phases 0–3 complete** (spikes; shared contracts; database and config; LLM core). Next: Phase 4.
+> **Status: approved 2026-09-27. Phases 0–4 complete** (spikes; shared contracts; database and config; LLM core; output filter). Next: Phase 5.
 > Based on [top_secret.md](top_secret.md) as of 2026-09-27. If this plan and the spec disagree, the spec wins, and this plan gets fixed.
 
 ---
@@ -63,13 +63,13 @@ mika/
 │   │   ├── config.py           # LLM + server config (Python)
 │   │   ├── api/ws_runtime.py
 │   │   ├── llm/                # engine.py (Ollama), tag_parser.py, chunker.py, streaming.py, live.py (check)
-│   │   ├── filter/             # normalizer.py, hard_rules.py, ai_classifier.py, replacer.py, policy.py
+│   │   ├── filter/             # normalizer.py, hard_rules.py, ai_classifier.py, replacer.py, policy.py, context.py, check.py
 │   │   ├── memory/             # cache.py (FIFO), rag.py (pgvector), history.py (prompt formatting)
 │   │   ├── personality/        # engine.py (YAML + traits)
 │   │   ├── state/manager.py
 │   │   ├── turn/pipeline.py    # One turn end-to-end (section 6)
 │   │   └── db/                 # pool.py, schema.py, queries.py
-│   ├── data/                   # personality.yaml, prohibited_words.txt
+│   ├── data/                   # personality.yaml, filter_policy.yaml, prohibited_words.txt, block_fallbacks.txt
 │   ├── scripts/                # setup_db.sql; setup_wsl_test_db.sh (Acer test database)
 │   ├── tests/
 │   ├── requirements.txt, requirements-dev.txt, pytest.ini
@@ -139,10 +139,12 @@ user_message
   → tag parser: read "[emotion]", validate, fallback neutral → send turn_start
   → normalizer → sentence chunker (flush the buffer at end of stream)
   → for each sentence, in order:
-        hard rules hit?   → BLOCK: replacer (2nd llama3.1:8b call) → re-check with filter
-                                   → still unsafe or timeout → toast line
+        hard rules hit?   → BLOCK: replacer rewrites (2nd llama3.1:8b call) → re-check with filter
+                                   → still unsafe or timeout → fallback line (Pandora's)
         else classifier   → safe → ALLOW
-                            unsafe / timeout / bad output → REPLACE ("Filtered" + toast)
+                            unsafe → REPLACE: "Filtered!" + replacer's steering line → re-check
+                                     → still unsafe or timeout → "Filtered!" + fallback line
+                            couldn't judge (timeout / error / bad output) → "Filtered!" + fallback line
         → send sentence(seq, text, action)
   → send turn_end(intent)
   → save to DB: chat_logs row + memory_embeddings row; push to FIFO cache
@@ -150,7 +152,7 @@ user_message
 
 Details:
 - **Classifier call:** temperature 0, Ollama structured output (`format` = JSON schema `{safe: bool, reason: str}`). The input is the user message, the last few history turns, the reply so far and the sentence being judged. It has a strict timeout.
-- **Replacer call:** it gets the user message, the reply so far and the block reason, and must return one sentence. It has a strict timeout and is re-filtered once. There is no retry loop.
+- **Replacer call:** it gets the user message, the reply so far and the reason (for BLOCK only "a prohibited word", never the word itself), and must return one sentence. It has a strict timeout and is re-filtered once. There is no retry loop.
 - **Order:** sentences are filtered one at a time per turn, so `seq` order is always the spoken order. The LLM keeps streaming into a bounded queue while the filter works.
 - **History formatting (decision #2):** an ALLOW turn is stored as a normal assistant message. For a turn with REPLACE or BLOCK, the assistant message is `reply`, followed by a note containing `original_reply` and the action.
 - **Shutdown:** all turn tasks live in an `asyncio.TaskGroup`. Queues are bounded. `CancelledError` is always re-raised. WS handlers exit on disconnect, and the lifespan cancels and awaits everything.
@@ -264,8 +266,25 @@ Ways to cut the latency later (measured options, not decided):
   - `app/llm/streaming.py` chains them (tag parser → normalizer → chunker) and yields the emotion first, then sentences.
 - To watch: the full personality makes the system prompt about 5 times longer than Spike A's. With one Ollama slot, the classifier calls in between mean that prompt is re-read on every turn. On the Acer's CPU the emotion arrived after 9.7 s; the Mac run of the live script shows the real cost on the M1.
 
-### Phase 4 — Output filter
+### Phase 4 — Output filter ✅ (2026-10-04)
 - Hard rules (word-boundary matching after normalization), AI classifier, replacer, policy engine producing `FilterResult`.
+- **Result:** 215 server tests pass, 47 of them new. The fake-LLM tests cover every case in "done when", plus: a replacement containing a prohibited word, the replacer timing out, and the classifier failing (no further LLM calls).
+  - **Real-model check on the Acer** (`llama3:latest` on CPU, `python -m app.filter.check`):
+    - a sexual sentence → REPLACE "sexual content";
+    - an address and phone number → REPLACE "personal information";
+    - in both cases Mika's replacement was an on-topic LLM line.
+    - "You look really cute today, Pandora~" hit the 12 s classifier timeout on the slow CPU and fell back as designed. The Mac run decides whether it passes, as it should under the teen-friendly rules.
+  - **Content (user decisions, 2026-10-04):** teen-friendly rules in `data/filter_policy.yaml`. `data/prohibited_words.txt` (Pandora's list) starts empty. `data/block_fallbacks.txt` holds Pandora's last-resort line(s); a placeholder for now.
+  - **Hard rules** (`filter/hard_rules.py`): whole words or phrases, ignoring case and accents; a trailing `*` matches longer words.
+  - **Classifier** (`filter/ai_classifier.py`):
+    - the prompt keeps the static rules first and the growing parts last, so Ollama can reuse its cache within a turn;
+    - JSON schema, temperature 0, 12 s timeout;
+    - it fails closed, and `Verdict.judged` marks "couldn't judge".
+  - **Replacer** (`filter/replacer.py`):
+    - `rewrite` (BLOCK; it never sees the prohibited word) and `deflect` (REPLACE);
+    - its answer is cleaned like a reply (tag, stage directions, emoji, first sentence only), with a 12 s timeout.
+  - **Policy** (`filter/policy.py`): every LLM-written replacement gets one re-check: hard rules, then the classifier. When the classifier couldn't judge, REPLACE skips the replacer, so a struggling Ollama costs one timeout per sentence, not three.
+  - **Try it on the Mac:** `python -m app.filter.check "<sentence>" ...` prints each verdict, Mika's replacement line and the time taken.
 - **Done when:** tests with a fake LLM cover ALLOW, REPLACE, BLOCK, a replacement that is itself unsafe, a classifier timeout, and invalid classifier JSON.
 
 ### Phase 5 — Memory, state, prompt builder

@@ -107,13 +107,15 @@
 
 - Output Filter Protocol (FilterAction):
 	+ ALLOW: Send the sentence to TTS and put it into memory.
-	+ REPLACE: Send "Filtered" + toast response to TTS instead of the sentence, then put the response into memory.
+	+ REPLACE: Send "Filtered!" + a toast response to TTS instead of the sentence, then put the response into memory. The toast response is written by the LLM: one light-hearted line steering the conversation elsewhere, checked by the filter again before it is spoken.
 	+ BLOCK: Discard the pending unsafe segment, generate a safe replacement, and send the replacement to TTS.
 	+ Memory stores original_reply (the unfiltered LLM output) for every response, together with reply and action.
 	+ The prompt context (history) is built from both reply and original_reply.
 - Filter stages:
-	+ Hard rules (prohibited words file) -> BLOCK.
+	+ Hard rules (prohibited words file, written by Pandora: mika/server/data/prohibited_words.txt) -> BLOCK.
 	+ AI Classifier -> REPLACE. It uses llama3.1:8b and judges each sentence with context: the user's message, recent history and the reply so far. The extra latency is accepted.
+	+ The classifier's standard is teen-friendly (mika/server/data/filter_policy.yaml): teasing and mild flirting are fine; sexual content, hate or slurs, harassment or threats, encouraging self-harm, dangerous or illegal instructions, and sharing real people's personal information are not.
+	+ Fallback lines (written by Pandora: mika/server/data/block_fallbacks.txt) are the last resort: spoken when an LLM-written replacement fails its re-check or the LLM fails, for BLOCK, and after "Filtered!" for REPLACE. If the classifier could not judge at all (timeout, error, malformed answer), REPLACE goes straight to a fallback line.
 	+ BLOCK replacement: a second llama3.1:8b call generates the safe replacement sentence. The replacement is checked by the filter again before it is spoken.
 	+ If the AI Classifier times out or returns invalid output, the sentence is treated as unsafe (REPLACE).
 	+ After a BLOCK, the replacement is spoken and the rest of the reply keeps going through the filter.
@@ -165,3 +167,6 @@
 | 2026-09-27 | Embeddings run on the Mac's CPU inside the server process, not through Ollama. | — |
 | 2026-09-30 | Database tests use a separate database named by TEST_DB_NAME. On the Acer it runs in WSL Ubuntu (PostgreSQL 16 + pgvector, port 5433). | — |
 | 2026-10-01 | Starting personality (mika/server/data/personality.yaml): the earlier v21 personality (character, guidelines) merged with v54 (warmth, interests, "Ehehe~" catchphrase). The reply-format rules (emotion tag, short spoken sentences) live in code, not in the YAML. | — |
+| 2026-10-04 | Classifier standard: teen-friendly. | — |
+| 2026-10-04 | Prohibited words list: written by Pandora (starts empty). | — |
+| 2026-10-04 | REPLACE's toast response is written by the LLM and re-checked; BLOCK's last-resort fallback lines are written by Pandora and also back up REPLACE. | "Filtered" + fixed toast lines |

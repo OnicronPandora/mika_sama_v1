@@ -54,8 +54,21 @@ class LLMSettings(BaseModel):
     read_timeout: float = 60.0  # longest wait for the next piece of a reply before giving up
 
 
+class FilterSettings(BaseModel):
+    """Output filter settings. On a timeout the classifier fails closed (spec: REPLACE)."""
+
+    model_config = ConfigDict(frozen=True)
+
+    classifier_timeout: float = 12.0  # Spike A: 2-5 s per sentence on the Mac
+    classifier_num_predict: int = 60
+    replacer_timeout: float = 12.0
+    replacer_num_predict: int = 60
+    filtered_prefix: str = "Filtered!"  # spoken before the LLM's line on REPLACE (spec)
+
+
 class Settings(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     db: DatabaseSettings = Field(default_factory=DatabaseSettings)
     llm: LLMSettings = Field(default_factory=LLMSettings)
+    filter: FilterSettings = Field(default_factory=FilterSettings)

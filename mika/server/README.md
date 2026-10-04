@@ -1,14 +1,20 @@
 # Mika-sama server (Mac M1)
 
 The orchestrator: LLM, state, memory, database and output filter
-([implementation plan](../../docs/implementation_plan.md)). So far (Phase 3) it has:
+([implementation plan](../../docs/implementation_plan.md)). So far (Phase 4) it has:
 - the configuration, the PostgreSQL + pgvector database layer and a `/health` endpoint;
 - Mika's personality (`data/personality.yaml`) and the system prompt built from it;
 - Ollama streaming, and the emotion tag parser, normalizer and sentence chunker that turn a reply into an
-  emotion and spoken sentences.
+  emotion and spoken sentences;
+- the output filter: hard rules (`data/prohibited_words.txt`), the AI classifier (`data/filter_policy.yaml`),
+  LLM-written replacements and the fallback lines (`data/block_fallbacks.txt`).
 
-Check a live reply (from `mika/server`, with Ollama running): `python -m app.llm.live "Hi Mika!"`.
-Add `--show-prompt` to see the full system prompt.
+Try things from `mika/server`, with Ollama running:
+- a live reply: `python -m app.llm.live "Hi Mika!"` (add `--show-prompt` to see the system prompt, `--cold` to
+  measure re-reading the whole prompt, as turns must after the filter's calls);
+- the output filter: `python -m app.filter.check "a sentence" "another sentence"`.
+
+The files in `data/` are Pandora's to edit; the server reads them at startup.
 
 Commands below run from the repo root unless they `cd` first, inside the project's `.conda` env.
 
