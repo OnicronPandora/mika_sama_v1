@@ -1,0 +1,12 @@
+# Prohibited words: the output filter's hard rules. Any sentence containing one is BLOCKED:
+# it is discarded, the LLM writes a safe replacement, and that is checked again before it's spoken.
+#
+# One word or phrase per line. Matching:
+#   - whole words only: "ass" does not match "class"
+#   - capitals and accents are ignored: "Fück" matches "fuck"
+#   - a trailing * also matches longer words: "curse*" matches "cursed" and "curses"
+#   - a phrase matches with any spacing: "shut up" matches "shut   up"
+# Blank lines and lines starting with # are ignored. The server reads this file at startup.
+#
+# Pandora writes this list (decision 2026-10-04). Until it has entries, no sentence is blocked by
+# hard rules; the AI classifier still checks every sentence.

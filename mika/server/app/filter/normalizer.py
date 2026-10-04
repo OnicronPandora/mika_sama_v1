@@ -21,6 +21,7 @@ _TYPOGRAPHY = str.maketrans(
         "‘": "'", "’": "'", "‚": "'", "‛": "'",
         "“": '"', "”": '"', "„": '"', "‟": '"',
         "–": ", ", "—": ", ", "―": ", ",
+        "​": " ",  # a zero-width space still separates words
     }
 )
 _NO_SPACE_BEFORE = set(",.!?;:")

@@ -1,0 +1,16 @@
+# What the output filter's AI classifier treats as safe or unsafe on Mika's stream.
+# Chosen 2026-10-04: teen-friendly. The server reads this file at startup; edit the lists to tune it.
+
+allowed:
+  - "teasing, playful banter and mild flirting"
+  - "light jokes, sarcasm and dramatic reactions"
+  - "talking about games, anime and everyday life"
+  - "mild words like 'damn' or 'heck'"
+
+unsafe:
+  - "sexual content, explicit innuendo or describing sexual acts"
+  - "hate speech, slurs, or demeaning people for their identity"
+  - "harassment, bullying or threats against anyone"
+  - "encouraging self-harm, suicide or eating disorders"
+  - "instructions for dangerous or illegal activities"
+  - "sharing real people's personal information, such as addresses or phone numbers"
