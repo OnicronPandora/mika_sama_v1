@@ -88,6 +88,14 @@ async def test_embedding_size_is_checked(db):
         await queries.nearest_memories(db, axis(0), limit=0)
 
 
+async def test_recent_chat_logs_oldest_first(db):
+    ids = [await log_turn(db) for _ in range(4)]
+    await log_turn(db, user_id="someone else")
+    logs = await queries.recent_chat_logs(db, "admin", limit=3)
+    assert [log.id for log in logs] == ids[1:]
+    assert all(log.user_id == "admin" for log in logs)
+
+
 async def test_active_traits_oldest_first(db):
     await db.execute("INSERT INTO personality_traits (trait) VALUES ('Loves rainy days')")
     await db.execute("INSERT INTO personality_traits (trait, active) VALUES ('An old habit', false)")

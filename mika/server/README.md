@@ -1,13 +1,20 @@
 # Mika-sama server (Mac M1)
 
 The orchestrator: LLM, state, memory, database and output filter
-([implementation plan](../../docs/implementation_plan.md)). So far (Phase 4) it has:
+([implementation plan](../../docs/implementation_plan.md)). So far (Phase 5) it has the parts below; Phase 6
+wires them into a running turn:
 - the configuration, the PostgreSQL + pgvector database layer and a `/health` endpoint;
 - Mika's personality (`data/personality.yaml`) and the system prompt built from it;
 - Ollama streaming, and the emotion tag parser, normalizer and sentence chunker that turn a reply into an
   emotion and spoken sentences;
 - the output filter: hard rules (`data/prohibited_words.txt`), the AI classifier (`data/filter_policy.yaml`),
-  LLM-written replacements and the fallback lines (`data/block_fallbacks.txt`).
+  LLM-written replacements and the fallback lines (`data/block_fallbacks.txt`);
+- memory: recent turns (FIFO), long-term memories recalled by meaning (nomic-embed-text on the CPU), and the
+  prompt for each turn, kept within the budgets in `app/config.py` (`MemorySettings`).
+
+The first time memories are used, fastembed downloads the embedding model (0.13 GB) into
+`mika/server/.cache/fastembed` (git-ignored). `MIKA_TEST_EMBEDDINGS=1 pytest` also runs the test that uses the
+real model.
 
 Try things from `mika/server`, with Ollama running:
 - a live reply: `python -m app.llm.live "Hi Mika!"` (add `--show-prompt` to see the system prompt, `--cold` to
