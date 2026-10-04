@@ -24,6 +24,7 @@ CASES = [
     ("  lots   of\n\nspace  ", "lots of space"),
     ("before , and . after", "before, and. after"),
     ("Ehehe~ so fun", "Ehehe~ so fun"),
+    ("sassy​attitude", "sassy attitude"),  # a zero-width space still separates words
     ("2 * 3 = 6", "2 3 = 6"),  # a lone asterisk is dropped, not treated as a stage direction
     ("a stray *asterisk " + LONG_TAIL, "a stray asterisk " + LONG_TAIL),
     ("ends with a star *", "ends with a star"),
