@@ -15,7 +15,7 @@
 
 ## 2. Implementation Status
 
-**Phases 0–4 of [implementation_plan.md](implementation_plan.md) are complete.** The spikes are done (results in the plan) and the shared contracts exist. The server has its configuration, database layer, personality, LLM core (Ollama streaming, emotion tag, normalizer, sentence chunker) and output filter (hard rules, AI classifier, replacer, policy). Memory, server wiring, the client and the frontend don't exist yet; Phase 5 is next.
+**Phases 0–5 of [implementation_plan.md](implementation_plan.md) are complete.** The spikes are done (results in the plan) and the shared contracts exist. The server has its configuration, database layer, personality, LLM core (Ollama streaming, emotion tag, normalizer, sentence chunker), output filter (hard rules, AI classifier, replacer, policy) and memory (FIFO cache, history, RAG with CPU embeddings, the turn prompt, state, intent). The parts aren't wired into a running turn yet (Phase 6), and the client and frontend don't exist yet.
 
 - `mika/` so far holds:
   - `mika/shared`: the `mika-shared` package with its tests;
@@ -50,7 +50,7 @@ mika_sama_project_v1/
 │
 ├── mika/
 │   ├── shared/                             # mika-shared: enums, payloads, WS events, TS codegen, tests
-│   ├── server/                             # Config, DB, personality, LLM core, output filter, tests
+│   ├── server/                             # Config, DB, personality, LLM core, output filter, memory, tests
 │   └── frontend/src/types/events.ts        # Generated from mika/shared (do not edit by hand)
 │
 ├── others/

@@ -1,6 +1,6 @@
 # Mika-sama v1 — Implementation Plan
 
-> **Status: approved 2026-09-27. Phases 0–4 complete** (spikes; shared contracts; database and config; LLM core; output filter). Next: Phase 5.
+> **Status: approved 2026-09-27. Phases 0–5 complete** (spikes; shared contracts; database and config; LLM core; output filter; memory and prompt). Next: Phase 6.
 > Based on [top_secret.md](top_secret.md) as of 2026-09-27. If this plan and the spec disagree, the spec wins, and this plan gets fixed.
 
 ---
@@ -64,10 +64,10 @@ mika/
 │   │   ├── api/ws_runtime.py
 │   │   ├── llm/                # engine.py (Ollama), tag_parser.py, chunker.py, streaming.py, live.py (check)
 │   │   ├── filter/             # normalizer.py, hard_rules.py, ai_classifier.py, replacer.py, policy.py, context.py, check.py
-│   │   ├── memory/             # cache.py (FIFO), rag.py (pgvector), history.py (prompt formatting)
+│   │   ├── memory/             # turns.py, cache.py (FIFO), history.py, rag.py (embeddings + pgvector), prompt.py
 │   │   ├── personality/        # engine.py (YAML + traits)
 │   │   ├── state/manager.py
-│   │   ├── turn/pipeline.py    # One turn end-to-end (section 6)
+│   │   ├── turn/               # intent.py; pipeline.py: one turn end-to-end (section 6, Phase 6)
 │   │   └── db/                 # pool.py, schema.py, queries.py
 │   ├── data/                   # personality.yaml, filter_policy.yaml, prohibited_words.txt, block_fallbacks.txt
 │   ├── scripts/                # setup_db.sql; setup_wsl_test_db.sh (Acer test database)
@@ -265,6 +265,10 @@ Ways to cut the latency later (measured options, not decided):
   - **Every stage gives the same result however the stream is chunked.** The tests feed each case whole and one character at a time, plus 200 random chunkings for the chunker.
   - `app/llm/streaming.py` chains them (tag parser → normalizer → chunker) and yields the emotion first, then sentences.
 - To watch: the full personality makes the system prompt about 5 times longer than Spike A's. With one Ollama slot, the classifier calls in between mean that prompt is re-read on every turn. On the Acer's CPU the emotion arrived after 9.7 s; the Mac run of the live script shows the real cost on the M1.
+- **Measured on the Mac** (llama3.1:8b, 2026-10-04):
+  - **Fixed:** the first live run took 19.7 s to the emotion, because the warm-up only loaded the weights. `load_model()` now runs a real tiny reply, and the emotion then arrived at **1.4 s**.
+  - **The real per-turn cost:** with the whole 344-token prompt re-read (`--cold`), the emotion arrived at **4.45 s**: 4.1 s to read the prompt at **about 84 tokens/s**, and replies at 10–11 tokens/s. Every 100 extra prompt tokens costs about 1.2 s, which set Phase 5's budgets.
+  - **Not a bug:** a "lost space" in the printed output came from copying wrapped lines in a 146-column Terminal.
 
 ### Phase 4 — Output filter ✅ (2026-10-04)
 - Hard rules (word-boundary matching after normalization), AI classifier, replacer, policy engine producing `FilterResult`.
@@ -285,12 +289,32 @@ Ways to cut the latency later (measured options, not decided):
     - its answer is cleaned like a reply (tag, stage directions, emoji, first sentence only), with a 12 s timeout.
   - **Policy** (`filter/policy.py`): every LLM-written replacement gets one re-check: hard rules, then the classifier. When the classifier couldn't judge, REPLACE skips the replacer, so a struggling Ollama costs one timeout per sentence, not three.
   - **Try it on the Mac:** `python -m app.filter.check "<sentence>" ...` prints each verdict, Mika's replacement line and the time taken.
+  - **Measured on the Mac** (2026-10-04):
+    - "You look really cute today, Pandora~" → ALLOW in 6.2 s (one classifier call, its prompt read cold).
+    - The sexual sentence → REPLACE in 7.4 s; the address and phone number → REPLACE in 7.8 s. Both replacement lines were on topic.
+    - The teen-friendly verdicts were all as intended.
 - **Done when:** tests with a fake LLM cover ALLOW, REPLACE, BLOCK, a replacement that is itself unsafe, a classifier timeout, and invalid classifier JSON.
 
-### Phase 5 — Memory, state, prompt builder
+### Phase 5 — Memory, state, prompt builder ✅ (2026-10-04)
 - FIFO cache (bounded), RAG retrieval, history formatter (decision #2), state manager (`Field(default_factory=dict)`), intent rule (decision #4).
 - The whole prompt, plus room for `num_predict`, must fit in the 4096-token context (Spike A). A longer context needs memory the 8 GB Mac doesn't have.
 - **Done when:** a test builds the full prompt for a user with past filtered turns, and the output matches the expected text.
+- **Result:** 237 server tests pass, 22 of them new, including a golden test of the full prompt (system prompt with a learned trait, an allowed turn, a REPLACE turn with its note, a recalled memory, the new message).
+  - **Budgets, from the Mac's 84 tokens/s** (`MemorySettings`):
+    - recent turns: up to 6 per user, at most 350 tokens in the prompt (whole turns dropped, oldest first);
+    - memories: up to 3, at most 150 tokens;
+    - the output filter sees the last 2 turns.
+
+    With the 344-token system prompt, a full turn prompt is about 850 tokens, so about 10 s before the first word when Ollama re-reads it all. Phase 6 measures it end to end; the budgets are one setting each.
+  - **Prompt order:** system prompt → recent turns → memories → message. What changes least comes first. Mika's past replies keep their `[emotion]` tag, so the model keeps seeing the format. A filtered turn gets a system note with the original reply (decision #2). A guard keeps any prompt inside 4096 tokens: it drops history, then memories, then shortens the message.
+  - **Memory (RAG):**
+    - nomic-embed-text runs on the CPU in the server (decision #23), as `nomic-ai/nomic-embed-text-v1.5-Q` (quantized, 0.13 GB, 768 dims) via fastembed 0.8.1 / ONNX Runtime. It embeds one memory in about 21 ms on the Acer, so it adds nothing noticeable to a turn.
+    - The code adds nomic's `search_document:` / `search_query:` prefixes itself; fastembed doesn't.
+    - Turns still in the recent history aren't recalled again.
+  - **Calibrated with the real model:** with the speaker names in the embedded text, every memory looked alike ("Good morning Mika!" was 0.35–0.40 from everything). So memories are stored with names (for the prompt) but embedded without them, and the cutoff is 0.45 (related 0.29–0.47, unrelated 0.44–0.60). That was a small sample; re-tune with real conversations.
+  - **Restarts:** `recent_chat_logs` reloads the FIFO cache from the database, so Mika remembers the conversation.
+  - **State and intent:** `ServerState` follows the spec's schema plus a `session_id` per run. `decide_intent` is decision #4.
+  - **Acer env:** fastembed moved `tokenizers` and `huggingface_hub` to versions GenieTTS doesn't pin. `pip check` is clean, and GenieTTS was re-verified (2.36 s of speech in 1.82 s).
 
 ### Phase 6 — Server wiring
 - Turn pipeline (section 6), `/ws/runtime` with an `Origin` check, lifespan startup and shutdown, `server.log`.

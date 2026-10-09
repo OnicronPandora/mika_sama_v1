@@ -118,6 +118,21 @@ async def get_chat_log(conn: AsyncConnection, chat_log_id: int) -> ChatLog | Non
     return ChatLog.model_validate(row) if row else None
 
 
+async def recent_chat_logs(conn: AsyncConnection, user_id: str, limit: int) -> list[ChatLog]:
+    """The user's last turns, oldest first (to refill the FIFO cache when the server starts)."""
+    async with conn.cursor(row_factory=dict_row) as cur:
+        await cur.execute(
+            """
+            SELECT * FROM (
+                SELECT * FROM chat_logs WHERE user_id = %s ORDER BY created_at DESC, id DESC LIMIT %s
+            ) AS recent
+            ORDER BY created_at, id
+            """,
+            (user_id, limit),
+        )
+        return [ChatLog.model_validate(row) for row in await cur.fetchall()]
+
+
 async def insert_memory(
     conn: AsyncConnection, *, chat_log_id: int, content: str, embedding: Sequence[float] | np.ndarray
 ) -> int:

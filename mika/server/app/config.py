@@ -66,9 +66,33 @@ class FilterSettings(BaseModel):
     filtered_prefix: str = "Filtered!"  # spoken before the LLM's line on REPLACE (spec)
 
 
+class MemorySettings(BaseModel):
+    """Recent turns (FIFO) and long-term memories (RAG).
+
+    Kept small on purpose: on the Mac, Ollama re-reads the prompt at about 84 tokens/s, so every 100 tokens
+    of history or memories delays Mika's reply by about 1.2 s (Phase 4 measurements).
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    admin_name: str = "Pandora"  # how the admin (user_id "admin") is named in memories and filter context
+    history_turns: int = 6  # turns kept per user in the FIFO cache
+    history_max_tokens: int = 350  # budget for recent turns in the chat prompt (oldest dropped first)
+    classifier_history_turns: int = 2  # recent turns the output filter sees as context
+    memory_count: int = 3  # long-term memories recalled per turn
+    # Cosine distance; less similar memories are ignored. Calibrated 2026-10-04 on a small sample with the
+    # quantized model: related memories scored 0.29-0.47, unrelated 0.44-0.60. Re-tune with real conversations.
+    memory_max_distance: float = 0.45
+    memory_max_tokens: int = 150
+    embedding_model: str = "nomic-ai/nomic-embed-text-v1.5-Q"  # quantized nomic-embed-text, 0.13 GB, 768 dims
+    embedding_cache_dir: Path = SERVER_DIR / ".cache" / "fastembed"
+    embedding_threads: int = 2  # CPU threads for embeddings; leaves the rest for Ollama
+
+
 class Settings(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     db: DatabaseSettings = Field(default_factory=DatabaseSettings)
     llm: LLMSettings = Field(default_factory=LLMSettings)
     filter: FilterSettings = Field(default_factory=FilterSettings)
+    memory: MemorySettings = Field(default_factory=MemorySettings)
