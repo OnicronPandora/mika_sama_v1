@@ -24,24 +24,19 @@ The first start downloads the embedding model (0.13 GB) into `mika/server/.cache
 Try things from `mika/server`, with Ollama running:
 - a live reply: `python -m app.llm.live "Hi Mika!"` (add `--show-prompt` to see the system prompt, `--cold` to
   measure re-reading the whole prompt);
-- the output filter: `python -m app.filter.check "a sentence" "another sentence"` (`--mode shared` for the
-  other way of asking, see below);
+- the output filter: `python -m app.filter.check "a sentence" "another sentence"`;
 - whole turns, timed: `python -m app.turn.bench` (below).
 
 The files in `data/` are Pandora's to edit; the server reads them at startup. So does the `personality_traits`
 table: restart the server after adding a trait.
 
-## The output filter experiment (Phase 6)
+## Timing whole turns
 
-The output filter's LLM calls can see the turn in two ways (`FilterSettings.context_mode` in `app/config.py`):
-- `separate` (the default for now): the classifier and the replacer have their own short prompts, as in Phase 4;
-- `shared`: they continue Mika's own conversation (her prompt, her reply so far, then a check request), so
-  Ollama reuses the prompt it has just read for her reply instead of reading a new one.
-
-`python -m app.turn.bench` plays the same five-turn conversation in both modes on the real model (about 6
-minutes on the Mac; it writes nothing to the database) and prints, per turn, when the avatar would react and
-when each sentence would be approved, then how each mode judges 12 labeled sentences, then a summary. Its
-output decides which mode the server keeps.
+`python -m app.turn.bench` plays a five-turn conversation with Pandora through the real turn pipeline (about 3
+minutes on the Mac; it writes nothing to the database). For each turn it prints when the avatar would react,
+when each sentence would be approved and why a sentence was filtered; then the classifier's verdicts on 12
+labeled sentences, which are worth checking after editing `data/filter_policy.yaml`; then a summary. Phase 6
+used it to choose how the output filter asks the LLM.
 
 Commands below run from the repo root unless they `cd` first, inside the project's `.conda` env.
 

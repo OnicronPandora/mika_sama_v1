@@ -113,12 +113,12 @@ def is_prompt_prefix(prefix: list[dict], messages: list[dict]) -> bool:
     return messages[: len(head)] == head and nxt["role"] == last["role"] and nxt["content"].startswith(last["content"])
 
 
-def fake_settings(*, mode: str = "separate", reply_timeout: float = 60.0, **server) -> Settings:
+def fake_settings(*, reply_timeout: float = 60.0, **server) -> Settings:
     """Settings for a server without a database; fast filter timeouts."""
     return Settings(
         db=DatabaseSettings(name="unused", user="unused", password="unused"),
         llm=LLMSettings(reply_timeout=reply_timeout),
-        filter=FilterSettings(classifier_timeout=1, replacer_timeout=1, context_mode=mode),
+        filter=FilterSettings(classifier_timeout=1, replacer_timeout=1),
         server=ServerSettings(**server),
     )
 

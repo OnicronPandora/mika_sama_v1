@@ -56,7 +56,7 @@ def build_services(
     pool: AsyncConnectionPool | None = None,
 ) -> Services:
     """Wire the parts together (no I/O beyond reading the filter's files in data/)."""
-    system_prompt = build_system_prompt(personality, traits, stream_rules=policy.prompt_section())
+    system_prompt = build_system_prompt(personality, traits)
     state = StateManager(personality)
     conversation = Conversation(archive, settings.memory)
     runner = TurnRunner(
@@ -115,5 +115,5 @@ async def open_services(
             log.error("Ollama isn't reachable at %s: start it, then start the server again", settings.llm.ollama_host)
             raise
         services.state.set_service("ollama", "ok")
-        log.info("Services ready in %.1f s (output filter: %s)", time.perf_counter() - started, settings.filter.context_mode)
+        log.info("Services ready in %.1f s", time.perf_counter() - started)
         yield services

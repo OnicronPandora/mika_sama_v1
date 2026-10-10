@@ -4,9 +4,9 @@
     python -m app.llm.live --cold "What game are you playing these days?"
     python -m app.llm.live --model llama3:latest --show-prompt "Hello!"
 
-Uses data/personality.yaml and the stream rules (data/filter_policy.yaml), without learned traits. The model
-is loaded and warmed up first, so the times show what a turn costs while the server is running. --cold makes
-Ollama read the whole system prompt again, as it must when something else used Ollama in between.
+Uses data/personality.yaml without learned traits. The model is loaded and warmed up first, so the times
+show what a turn costs while the server is running. --cold makes Ollama read the whole system prompt again,
+as it must when nothing of the prompt is in its cache.
 """
 
 import argparse
@@ -16,7 +16,6 @@ import time
 from uuid import uuid4
 
 from ..config import LLMSettings
-from ..filter.ai_classifier import load_filter_policy
 from ..personality.engine import build_system_prompt, load_personality
 from .engine import LLMEngine, ReplyStats
 from .streaming import EmotionDecided, SentenceReady, reply_events
@@ -25,7 +24,7 @@ from .streaming import EmotionDecided, SentenceReady, reply_events
 async def run(args: argparse.Namespace) -> None:
     overrides = {key: value for key, value in (("model", args.model), ("ollama_host", args.host)) if value}
     engine = LLMEngine(LLMSettings(**overrides))
-    prompt = build_system_prompt(load_personality(), stream_rules=load_filter_policy().prompt_section())
+    prompt = build_system_prompt(load_personality())
     if args.show_prompt:
         print(f"--- system prompt ---\n{prompt}\n---------------------")
     # A unique first line means Ollama can't reuse its cached copy of the prompt.

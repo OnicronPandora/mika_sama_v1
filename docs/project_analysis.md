@@ -15,7 +15,7 @@
 
 ## 2. Implementation Status
 
-**Phases 0–6 of [implementation_plan.md](implementation_plan.md) are complete.** The spikes are done (results in the plan) and the shared contracts exist. The Mac server runs (`python -m app`): it answers the Acer's messages on `/ws/runtime` with whole turns (prompt with history and memories, Ollama stream, emotion, output filter per sentence, logging, memory) and shuts down cleanly on Ctrl+C, even mid-turn. Phase 6's experiment (how the output filter's LLM calls see the conversation) waits for its measurements on the Mac. The client (Phase 7) and frontend don't exist yet.
+**Phases 0–6 of [implementation_plan.md](implementation_plan.md) are complete.** The spikes are done (results in the plan) and the shared contracts exist. The Mac server runs (`python -m app`): it answers the Acer's messages on `/ws/runtime` with whole turns (prompt with history and memories, Ollama stream, emotion, output filter per sentence, logging, memory) and shuts down cleanly on Ctrl+C, even mid-turn. Measured on the Mac, Mika's first sentence is approved about 9 s after a message. The client (Phase 7) and frontend don't exist yet.
 
 - `mika/` so far holds:
   - `mika/shared`: the `mika-shared` package with its tests;
