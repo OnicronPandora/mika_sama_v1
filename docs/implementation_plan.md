@@ -1,6 +1,6 @@
 # Mika-sama v1 — Implementation Plan
 
-> **Status: approved 2026-09-27. Phases 0–5 complete** (spikes; shared contracts; database and config; LLM core; output filter; memory and prompt). Next: Phase 6.
+> **Status: approved 2026-09-27. Phases 0–6 complete** (spikes; shared contracts; database and config; LLM core; output filter; memory and prompt; server wiring). Phase 6's output-filter experiment waits for its Mac measurements. Next: Phase 7.
 > Based on [top_secret.md](top_secret.md) as of 2026-09-27. If this plan and the spec disagree, the spec wins, and this plan gets fixed.
 
 ---
@@ -59,15 +59,19 @@ mika/
 │   └── tests/
 ├── server/                     # Mac M1
 │   ├── app/
-│   │   ├── main.py             # FastAPI app, lifespan, shutdown
+│   │   ├── __main__.py         # python -m app: uvicorn, server.log, clean Ctrl+C
+│   │   ├── main.py             # FastAPI app, lifespan, /health, CORS
+│   │   ├── services.py         # Startup (database, embeddings, Ollama warm-up) and shutdown, in order
+│   │   ├── logs.py             # server.log
 │   │   ├── config.py           # LLM + server config (Python)
-│   │   ├── api/ws_runtime.py
+│   │   ├── api/ws_runtime.py   # /ws/runtime: Origin check, one reader + one turn worker per connection
 │   │   ├── llm/                # engine.py (Ollama), tag_parser.py, chunker.py, streaming.py, live.py (check)
 │   │   ├── filter/             # normalizer.py, hard_rules.py, ai_classifier.py, replacer.py, policy.py, context.py, check.py
-│   │   ├── memory/             # turns.py, cache.py (FIFO), history.py, rag.py (embeddings + pgvector), prompt.py
-│   │   ├── personality/        # engine.py (YAML + traits)
+│   │   ├── memory/             # turns.py, cache.py (FIFO + history window), history.py, rag.py (embeddings + pgvector),
+│   │   │                       # prompt.py, archive.py (PostgreSQL or in-memory), conversation.py
+│   │   ├── personality/        # engine.py (YAML + traits + stream rules)
 │   │   ├── state/manager.py
-│   │   ├── turn/               # intent.py; pipeline.py: one turn end-to-end (section 6, Phase 6)
+│   │   ├── turn/               # pipeline.py: one turn end to end (section 6); intent.py; bench.py (latency experiment)
 │   │   └── db/                 # pool.py, schema.py, queries.py
 │   ├── data/                   # personality.yaml, filter_policy.yaml, prohibited_words.txt, block_fallbacks.txt
 │   ├── scripts/                # setup_db.sql; setup_wsl_test_db.sh (Acer test database)
@@ -134,8 +138,9 @@ Common rules: `seq` is 0-based. Text fields must not be blank (surrounding white
 
 ```
 user_message
-  → build prompt: personality YAML + active traits + FIFO history + RAG context + user message
-  → Ollama stream (llama3.1:8b)
+  → build prompt: system prompt (personality YAML + active traits + stream rules + reply rules)
+                  → history window (FIFO) → one user message: [filter note] + [RAG memories] + message
+  → Ollama stream (llama3.1:8b), generated in full before the filter's calls (see "Order")
   → tag parser: read "[emotion]", validate, fallback neutral → send turn_start
   → normalizer → sentence chunker (flush the buffer at end of stream)
   → for each sentence, in order:
@@ -146,16 +151,20 @@ user_message
                                      → still unsafe or timeout → "Filtered!" + fallback line
                             couldn't judge (timeout / error / bad output) → "Filtered!" + fallback line
         → send sentence(seq, text, action)
-  → send turn_end(intent)
+  → send turn_end(intent), or error if the turn failed before any sentence was sent
   → save to DB: chat_logs row + memory_embeddings row; push to FIFO cache
+  → warm Ollama up with the start of this user's next prompt, while Mika is still speaking
 ```
 
 Details:
-- **Classifier call:** temperature 0, Ollama structured output (`format` = JSON schema `{safe: bool, reason: str}`). The input is the user message, the last few history turns, the reply so far and the sentence being judged. It has a strict timeout.
+- **Classifier call:** temperature 0, Ollama structured output (`format` = JSON schema `{safe: bool, reason: str}`; `{reason, safe}` in "shared" mode, Phase 6). The input is the user message, the last few history turns, the reply so far and the sentence being judged ("shared" mode: Mika's whole turn prompt instead). It has a strict timeout.
 - **Replacer call:** it gets the user message, the reply so far and the reason (for BLOCK only "a prohibited word", never the word itself), and must return one sentence. It has a strict timeout and is re-filtered once. There is no retry loop.
-- **Order:** sentences are filtered one at a time per turn, so `seq` order is always the spoken order. The LLM keeps streaming into a bounded queue while the filter works.
-- **History formatting (decision #2):** an ALLOW turn is stored as a normal assistant message. For a turn with REPLACE or BLOCK, the assistant message is `reply`, followed by a note containing `original_reply` and the action.
-- **Shutdown:** all turn tasks live in an `asyncio.TaskGroup`. Queues are bounded. `CancelledError` is always re-raised. WS handlers exit on disconnect, and the lifespan cancels and awaits everything.
+- **Order:** sentences are filtered one at a time per turn, so `seq` order is always the spoken order. Ollama serves one request at a time on the Mac (Spike A), so the reply is generated in full first: filter calls sent during the stream would only wait in Ollama's queue, with their timeouts counting the wait. `turn_start` still goes out as soon as the tag is parsed.
+- **History formatting (decision #2):** an ALLOW turn is stored as a normal assistant message. For a turn with REPLACE or BLOCK, the assistant message is `reply`, followed by a note containing `original_reply` and the action. The note starts the next user message (see below).
+- **One system message:** Ollama's llama3.1 template moves every system message to the top of the prompt, so the system prompt is the only one. Filter notes and recalled memories go into the user's message, and consecutive same-role messages are merged as Ollama merges them, so the messages sent are exactly what the model reads.
+- **Reusing Ollama's cache:** the history window keeps its first turn while it grows, and restarts with the newest turns in half the budget when it no longer fits. After each turn, while Mika speaks, Ollama reads the next prompt's start (system prompt + history); the next turn then reads only its memories and message. The filter's calls either use their own prompts or continue Mika's conversation (`FilterSettings.context_mode`, Phase 6).
+- **Failures:** a reply that breaks off still sends its complete sentences; if the filter itself breaks, the rest of the reply is dropped (nothing unchecked is sent); database failures don't stop a turn. A failed turn is logged as `error_recovery` but not kept in the conversation.
+- **Shutdown:** each `/ws/runtime` connection runs its reader and its turn worker in an `asyncio.TaskGroup`. The message queue is bounded and refuses extra messages with an `error` event. `CancelledError` is always re-raised. When the Acer disconnects or uvicorn closes the connection at shutdown, the reader returns and the turn is cancelled; then the lifespan closes Ollama's client and the database pool.
 
 ---
 
@@ -316,9 +325,49 @@ Ways to cut the latency later (measured options, not decided):
   - **State and intent:** `ServerState` follows the spec's schema plus a `session_id` per run. `decide_intent` is decision #4.
   - **Acer env:** fastembed moved `tokenizers` and `huggingface_hub` to versions GenieTTS doesn't pin. `pip check` is clean, and GenieTTS was re-verified (2.36 s of speech in 1.82 s).
 
-### Phase 6 — Server wiring
+### Phase 6 — Server wiring ✅ (2026-10-10)
 - Turn pipeline (section 6), `/ws/runtime` with an `Origin` check, lifespan startup and shutdown, `server.log`.
 - **Done when:** an integration test drives the server with a fake Acer WS client and a fake LLM through a full turn, *and* Ctrl+C during a turn shuts the server down within a few seconds (regression test for known issues #1 and #2).
+- **Result:** 277 server tests pass (Phase 5: 237), including both "done when" tests:
+  - `tests/test_ws_runtime.py` runs uvicorn on localhost with a scripted LLM. A real WebSocket client plays the Acer through a whole turn: `turn_start`, the sentences, `turn_end`, then the turn is saved.
+  - `tests/test_shutdown.py` starts the server as its own process, the way `python -m app` runs it, sends a message whose reply never finishes, and presses Ctrl+C (Ctrl+Break on Windows). The server stops in about 0.1 s, its shutdown completes, and uvicorn never has to force-cancel anything. With the old server's bug planted (a turn loop that swallows `CancelledError`), the same test fails: 5.2 s, ended only by uvicorn's timeout.
+  - **Run it:** `python -m app` from `mika/server` (see its README). It listens on port 8000 for the Acer, logs to `server.log` (rotated at 5 MB) and the console, and refuses to start if PostgreSQL or Ollama is unreachable.
+  - **Found and fixed: Ollama moves every system message to the top of the prompt.** llama3.1's chat template (checked in the Ollama registry) renders only user and assistant messages in place, and joins all system messages into the system block at the top. So Phase 5's filter note ("the stream's filter changed your reply above") and the recalled memories weren't where the prompt put them. And because the memories change every turn, nothing after the system prompt could stay in Ollama's cache from one turn to the next. Now the system prompt is the only system message (section 6), and the Phase 5 golden test shows exactly what the model reads.
+  - **Turn pipeline** (`app/turn/pipeline.py`):
+    - the steps and failure handling in section 6;
+    - a failed turn before any sentence sends `error`, so the Acer unmutes STT;
+    - each turn's summary goes to `server.log` (emotion, actions, time to the first sentence and to `turn_end`), as does every Ollama call's timing.
+  - **`/ws/runtime`** (`app/api/ws_runtime.py`):
+    - browser origins are refused unless listed in `ServerSettings.allowed_origins` (empty: the Acer's Python client sends no Origin);
+    - per connection, a reader and a turn worker run in a TaskGroup, and turns never run in parallel;
+    - up to 4 messages wait while Mika answers; more get an `error` event;
+    - an invalid event gets an `error`, and the connection stays open;
+    - a new connection from the Acer replaces an old one that still looks open (close code 4001).
+  - **Startup** (`app/services.py`):
+    - order: PostgreSQL, learned traits, the embedding model, then Ollama loads the model and reads the start of Pandora's prompt (system prompt + her recent turns from the database), so her first message after a restart is answered quickly;
+    - `/health` reports the database, Ollama, the embeddings and the Acer's parts (`client_status`).
+  - **Mika's system prompt now includes the stream rules** from `data/filter_policy.yaml` (about 170 tokens; read once at startup, then cached). She knows what the filter checks for, and the "shared" classifier needs them (below).
+  - **Latency** (why the first sentence took about 20 s on the Mac, and what changed):
+    - *Warm-up between turns (both modes):* after `turn_end`, while Mika speaks, Ollama reads the start of the next prompt. The next turn then reads only its memories and message: about 1–2 s on the Mac instead of about 10 s. This is the biggest gain.
+    - *History window (both modes):* the window grows with each turn and restarts with the newest turns in half the budget when it no longer fits, so the prompt's start stays the same for several turns and the warm-up has little to read.
+    - *The experiment: how the filter's LLM calls see the turn* (`FilterSettings.context_mode`).
+      - "separate", the default for now: Phase 4's own prompts. On the Mac's single Ollama slot they evict Mika's prompt, so each turn's first classifier call reads its whole prompt (about 6 s), and the warm-up re-reads Mika's whole prompt (about 8 s, during her speech).
+      - "shared": the classifier and replacer continue Mika's conversation (her prompt, her reply so far, then a check request), so Ollama keeps what it read for her reply. Its check repeats the rule lists next to the question, and the verdict comes after its reason.
+      - Without those two changes, the shared classifier judged badly: on the Acer it got 7 of 12 labeled sentences right, calling allowed things such as "mild flirting" unsafe. With them it got 11 of 12, the same as "separate" (details in `app/filter/ai_classifier.py`).
+    - *First runs on the Acer* (llama3:latest on CPU, `python -m app.turn.bench --turns 3`; for direction only):
+
+      | Median over 3 turns | separate | shared (final check) |
+      |---|---|---|
+      | Emotion sent (avatar reacts) | 3.2 s | 3.5 s |
+      | First sentence approved | 17.7 s | 19.1 s |
+      | `turn_end` | 21.7 s | 31.4 s |
+      | One classifier call | 4.6 s | 11.6 s |
+      | Warm-up for the next turn | 1.9 s | 2.0 s |
+      | Labeled verdicts right | 11/12 | 11/12 |
+
+      - The Acer can't show the Mac's balance. Its Ollama 0.40.2 evidently keeps several cache slots, so "separate" calls didn't evict Mika's prompt here, which they will on the Mac's single slot. And this CPU reads prompts at about 33 tokens/s (the Mac: 84), which makes the shared check's roughly 250-token request cost about 8.5 s here and about 3 s there.
+      - Expected on the Mac (estimates): the first sentence about 12–14 s after the message instead of about 21 s, mostly thanks to the warm-up, in either mode. "Shared" is likely 1–2 s faster to the first sentence; "separate" is likely about 1.5 s faster for each later sentence.
+  - **To decide on the Mac:** run `python -m app.turn.bench` (about 6 minutes; README). It prints both modes' per-turn timings and verdicts, and a summary. The mode that gets the first sentence out faster, with verdicts at least as good, is kept, and the other is removed. If "separate" wins, the stream rules can leave Mika's prompt again.
 
 ### Phase 7 — Acer client
 - `/ws/runtime` connector with reconnect, GenieTTS worker (in a thread so it doesn't block the event loop), `/ws/chat` bridge, STT (VAD + RMS gate + faster-whisper), half-duplex gate driven by `turn_start` / `playback_finished` / `error`.

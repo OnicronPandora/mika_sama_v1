@@ -1,9 +1,13 @@
 """Personality Prompt Engine (spec: docs/top_secret.md).
 
-The system prompt has three layers, in this order:
+The system prompt has these parts, in this order:
 1. the base personality from data/personality.yaml (fixed);
 2. the traits Mika has learned, from the personality_traits table;
-3. the reply rules the streaming pipeline depends on (emotion tag, short spoken sentences).
+3. the stream rules from data/filter_policy.yaml, so she knows what the output filter checks for;
+4. the reply rules the streaming pipeline depends on (emotion tag, short spoken sentences).
+
+It is the only system message in Mika's prompts: Ollama moves every system message to the top of the
+prompt, so everything that belongs to a turn goes into user and assistant messages (memory/prompt.py).
 """
 
 from collections.abc import Sequence
@@ -46,12 +50,14 @@ def load_personality(path: Path = PERSONALITY_FILE) -> Personality:
         return Personality.model_validate(yaml.safe_load(f))
 
 
-def build_system_prompt(personality: Personality, traits: Sequence[str] = ()) -> str:
+def build_system_prompt(personality: Personality, traits: Sequence[str] = (), stream_rules: str = "") -> str:
     sections = [personality.core_identity]
     if personality.guidelines:
         sections.append("Guidelines:\n" + "\n".join(f"- {line}" for line in personality.guidelines))
     learned = [trait.strip() for trait in traits if trait.strip()]
     if learned:
         sections.append("What you have learned about yourself:\n" + "\n".join(f"- {trait}" for trait in learned))
+    if stream_rules:
+        sections.append(stream_rules)
     sections.append(REPLY_RULES)
     return "\n\n".join(sections)

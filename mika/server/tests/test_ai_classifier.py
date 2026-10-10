@@ -3,8 +3,9 @@ from fakes import FakeEngine, verdict
 from pydantic import ValidationError
 
 from app.config import FilterSettings
-from app.filter.ai_classifier import FilterPolicy, SafetyClassifier, Verdict, load_filter_policy
+from app.filter.ai_classifier import VERDICT_SCHEMA, FilterPolicy, SafetyClassifier, Verdict, load_filter_policy
 from app.filter.context import TurnContext
+from mika_shared.enums import Emotion
 
 POLICY = FilterPolicy(allowed=["teasing and mild flirting"], unsafe=["sexual content", "threats"])
 FAST = FilterSettings(classifier_timeout=0.1)
@@ -64,3 +65,44 @@ def test_a_typo_in_the_policy_file_is_an_error(tmp_path):
     path.write_text("allowed: [a]\nunsafe: [b]\nunsafe_extra: [c]\n", encoding="utf-8")
     with pytest.raises(ValidationError):
         load_filter_policy(path)
+
+
+SHARED = FilterSettings(classifier_timeout=0.1, context_mode="shared")
+PROMPT = (
+    {"role": "system", "content": "You are Mika-sama.\n\nStream rules ..."},
+    {"role": "user", "content": "Do you like my outfit?"},
+)
+
+
+async def test_shared_mode_continues_mikas_conversation():
+    engine = FakeEngine(verdict(True))
+    context = TurnContext(user_message="Do you like my outfit?", reply_so_far="Ooh!", prompt=PROMPT, emotion=Emotion.HAPPY)
+    assert await SafetyClassifier(engine, POLICY, SHARED, streamer="Mika-sama").classify("It's cute!", context) == Verdict(True, "test")
+    (call,) = engine.calls
+    assert call.messages[:2] == list(PROMPT)  # what Ollama has just read for her reply
+    assert call.messages[2] == {"role": "assistant", "content": "[happy] Ooh! It's cute!"}
+    check = call.messages[3]
+    assert check["role"] == "user"
+    assert check["content"].startswith("[Message from the stream's safety filter")
+    assert '"It\'s cute!"' in check["content"]
+    # The rules sit right next to the question, and the verdict follows its reason.
+    assert check["content"].index("- teasing and mild flirting") < check["content"].index("- sexual content")
+    assert list(call.json_schema["properties"]) == ["reason", "safe"]
+    assert (call.temperature, call.label) == (0, "classify")
+
+
+async def test_separate_mode_gives_the_verdict_first():
+    engine = FakeEngine(verdict(True))
+    await classifier(engine).classify("A sentence.", CONTEXT)
+    assert engine.calls[0].json_schema == VERDICT_SCHEMA
+
+
+async def test_shared_mode_needs_the_turn_prompt():
+    with pytest.raises(ValueError):
+        await SafetyClassifier(FakeEngine(), POLICY, SHARED, streamer="Mika-sama").classify("Hi.", CONTEXT)
+
+
+def test_the_rules_as_a_section_of_mikas_prompt():
+    section = POLICY.prompt_section()
+    assert section.startswith("Stream rules")
+    assert section.index("- teasing and mild flirting") < section.index("Not allowed") < section.index("- threats")

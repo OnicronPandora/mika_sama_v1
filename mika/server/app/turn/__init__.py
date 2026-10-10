@@ -1,1 +1,1 @@
-"""One turn, end to end (the pipeline comes in Phase 6)."""
+"""One turn, end to end: the pipeline (section 6 of the plan), the intent rule and the latency bench."""

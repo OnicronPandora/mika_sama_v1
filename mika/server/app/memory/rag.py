@@ -15,10 +15,12 @@ from psycopg import AsyncConnection
 
 from ..config import MemorySettings
 from ..db import queries
-from .turns import message_tokens
+from .turns import estimate_tokens
 
 DOCUMENT_PREFIX = "search_document: "
 QUERY_PREFIX = "search_query: "
+
+MEMORIES_HEADER = "[Things you remember from earlier conversations (they may be old):"
 
 
 class Embedder(Protocol):
@@ -91,13 +93,20 @@ class MemoryStore:
         return close[: self._settings.memory_count]
 
 
-def memories_message(memories: Sequence[str], max_tokens: int) -> dict[str, str] | None:
-    """Recalled memories as one system message, nearest first, within the budget. None if there are none."""
-    header = "Things you remember from earlier conversations (they may be old):"
-    message = {"role": "system", "content": header}
+def memories_block(memories: Sequence[str], max_tokens: int) -> str | None:
+    """Recalled memories as a block for the start of the user's message, nearest first, within the budget.
+
+    None if there are none. (Not a system message: Ollama would move it to the top of the prompt, and the
+    memories change every turn, so nothing after the system prompt could be reused from Ollama's cache.)
+    """
+    lines: list[str] = []
     for memory in memories:
-        candidate = {"role": "system", "content": message["content"] + "\n- " + memory.replace("\n", " / ")}
-        if message_tokens(candidate) > max_tokens:
+        candidate = [*lines, "- " + memory.replace("\n", " / ")]
+        if estimate_tokens(_render(candidate)) > max_tokens:
             break
-        message = candidate
-    return message if message["content"] != header else None
+        lines = candidate
+    return _render(lines) if lines else None
+
+
+def _render(lines: Sequence[str]) -> str:
+    return MEMORIES_HEADER + "\n" + "\n".join(lines) + "]"

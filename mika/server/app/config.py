@@ -5,6 +5,7 @@ LLM settings are Python defaults from the spec (docs/top_secret.md).
 """
 
 from pathlib import Path
+from typing import Literal
 
 from psycopg.conninfo import make_conninfo
 from pydantic import BaseModel, ConfigDict, Field, SecretStr
@@ -52,6 +53,9 @@ class LLMSettings(BaseModel):
     keep_alive: float | str = -1
     connect_timeout: float = 5.0
     read_timeout: float = 60.0  # longest wait for the next piece of a reply before giving up
+    reply_timeout: float = 60.0  # one whole reply, prompt included (150 tokens at 10-11 tokens/s on the Mac)
+    warm_up_timeout: float = 60.0  # loading the model (6-7 s) and reading a prompt, at startup and between turns
+    seed: int | None = None  # fixed sampling for measurements (app.turn.bench); None in normal use
 
 
 class FilterSettings(BaseModel):
@@ -64,6 +68,10 @@ class FilterSettings(BaseModel):
     replacer_timeout: float = 12.0
     replacer_num_predict: int = 60
     filtered_prefix: str = "Filtered!"  # spoken before the LLM's line on REPLACE (spec)
+    # How the classifier and the replacer see the turn (Phase 6 experiment; compare with python -m app.turn.bench):
+    # - "separate": their own short prompts (Phase 4). Ollama has to read Mika's prompt again after them.
+    # - "shared": they continue Mika's own conversation, so Ollama reuses the prompt it already read for her reply.
+    context_mode: Literal["separate", "shared"] = "separate"
 
 
 class MemorySettings(BaseModel):
@@ -77,7 +85,9 @@ class MemorySettings(BaseModel):
 
     admin_name: str = "Pandora"  # how the admin (user_id "admin") is named in memories and filter context
     history_turns: int = 6  # turns kept per user in the FIFO cache
-    history_max_tokens: int = 350  # budget for recent turns in the chat prompt (oldest dropped first)
+    # Budget for recent turns in the chat prompt. The window of turns grows until it no longer fits, then restarts
+    # with the newest turns that fit in half of it (ConversationCache.window).
+    history_max_tokens: int = 350
     classifier_history_turns: int = 2  # recent turns the output filter sees as context
     memory_count: int = 3  # long-term memories recalled per turn
     # Cosine distance; less similar memories are ignored. Calibrated 2026-10-04 on a small sample with the
@@ -89,6 +99,22 @@ class MemorySettings(BaseModel):
     embedding_threads: int = 2  # CPU threads for embeddings; leaves the rest for Ollama
 
 
+class ServerSettings(BaseModel):
+    """The server process and /ws/runtime (run it with python -m app)."""
+
+    model_config = ConfigDict(frozen=True)
+
+    host: str = "0.0.0.0"  # the Acer connects over the local network
+    port: int = 8000
+    # Browser pages allowed to open /ws/runtime or call the HTTP API (CORS doesn't cover WebSockets, so the
+    # endpoint checks Origin itself). The Acer's Python client sends no Origin header and needs no entry.
+    allowed_origins: tuple[str, ...] = ()
+    max_pending_messages: int = 4  # messages waiting while Mika answers; more are refused
+    send_timeout: float = 10.0  # a send that takes longer means the Acer is gone
+    graceful_shutdown_timeout: float = 5.0  # uvicorn's limit for open connections at shutdown
+    log_file: Path = SERVER_DIR / "server.log"  # spec: logs are stored in server.log
+
+
 class Settings(BaseModel):
     model_config = ConfigDict(frozen=True)
 
@@ -96,3 +122,4 @@ class Settings(BaseModel):
     llm: LLMSettings = Field(default_factory=LLMSettings)
     filter: FilterSettings = Field(default_factory=FilterSettings)
     memory: MemorySettings = Field(default_factory=MemorySettings)
+    server: ServerSettings = Field(default_factory=ServerSettings)

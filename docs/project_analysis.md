@@ -1,6 +1,6 @@
 # Mika-sama Project v1 — Analysis
 
-> Snapshot of the project folder as of **2026-09-27** (after the Phase 0 setup). The design itself lives in [top_secret.md](top_secret.md) (the authoritative spec); this file describes what actually exists on disk, how the docs relate to each other, and what is still undecided.
+> Snapshot of the project folder as of **2026-10-10** (after Phase 6). The design itself lives in [top_secret.md](top_secret.md) (the authoritative spec); this file describes what actually exists on disk, how the docs relate to each other, and what is still undecided.
 
 ## 1. What Is This Project?
 
@@ -15,11 +15,11 @@
 
 ## 2. Implementation Status
 
-**Phases 0–5 of [implementation_plan.md](implementation_plan.md) are complete.** The spikes are done (results in the plan) and the shared contracts exist. The server has its configuration, database layer, personality, LLM core (Ollama streaming, emotion tag, normalizer, sentence chunker), output filter (hard rules, AI classifier, replacer, policy) and memory (FIFO cache, history, RAG with CPU embeddings, the turn prompt, state, intent). The parts aren't wired into a running turn yet (Phase 6), and the client and frontend don't exist yet.
+**Phases 0–6 of [implementation_plan.md](implementation_plan.md) are complete.** The spikes are done (results in the plan) and the shared contracts exist. The Mac server runs (`python -m app`): it answers the Acer's messages on `/ws/runtime` with whole turns (prompt with history and memories, Ollama stream, emotion, output filter per sentence, logging, memory) and shuts down cleanly on Ctrl+C, even mid-turn. Phase 6's experiment (how the output filter's LLM calls see the conversation) waits for its measurements on the Mac. The client (Phase 7) and frontend don't exist yet.
 
 - `mika/` so far holds:
   - `mika/shared`: the `mika-shared` package with its tests;
-  - `mika/server`: config, schema, connection pool, queries, `/health`, tests;
+  - `mika/server`: the Mac server (config, database, personality, LLM core, output filter, memory, the turn pipeline, `/ws/runtime`, startup and shutdown, `server.log`) and its tests;
   - `mika/frontend/src/types/events.ts`: the TypeScript types generated from `mika/shared`.
 
   An earlier version of this file described a full scaffold under `mika/`; that scaffold never existed on disk.
@@ -50,7 +50,7 @@ mika_sama_project_v1/
 │
 ├── mika/
 │   ├── shared/                             # mika-shared: enums, payloads, WS events, TS codegen, tests
-│   ├── server/                             # Config, DB, personality, LLM core, output filter, memory, tests
+│   ├── server/                             # The Mac server: turn pipeline, /ws/runtime, filter, memory, DB, tests
 │   └── frontend/src/types/events.ts        # Generated from mika/shared (do not edit by hand)
 │
 ├── others/
@@ -256,7 +256,7 @@ sequenceDiagram
 | Backend language | Python 3.11.9 (Conda + Pip, `requirements.txt`) |
 | Web framework | FastAPI + Uvicorn, lifespan startup |
 | Real-time comms | WebSocket (`/ws/runtime` on Mac, `/ws/chat` on Acer) |
-| LLM | Ollama → Llama 3.1:8b (temperature 0.7, num_predict 400) |
+| LLM | Ollama → Llama 3.1:8b (temperature 0.7, num_predict 150) |
 | Database | PostgreSQL + pgvector, psycopg3 `AsyncConnectionPool` |
 | Validation | Pydantic v2 |
 | TTS | GenieTTS (CPU), `mikav3_onnx_model` |

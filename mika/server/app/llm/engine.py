@@ -1,6 +1,8 @@
 """Ollama async streaming chat. One client per server, reused for every request (spec)."""
 
+import time
 from collections.abc import AsyncIterator, Callable, Mapping, Sequence
+from contextlib import aclosing
 from dataclasses import dataclass
 
 import httpx
@@ -43,13 +45,34 @@ class ReplyStats:
         )
 
 
+# Told about every finished call: its label ("reply", "classify", ...), Ollama's timings and the wall time.
+CallListener = Callable[[str, ReplyStats, float], None]
+
+
 class LLMEngine:
-    def __init__(self, settings: LLMSettings, client: AsyncClient | None = None) -> None:
+    def __init__(
+        self, settings: LLMSettings, client: AsyncClient | None = None, *, on_call: CallListener | None = None
+    ) -> None:
         self.settings = settings
+        self.on_call = on_call
         self._client = client or AsyncClient(
             host=settings.ollama_host,
             timeout=httpx.Timeout(settings.read_timeout, connect=settings.connect_timeout),
         )
+
+    async def warm_up(self, messages: Sequence[Mapping[str, str]], *, label: str = "warm-up") -> None:
+        """Run a one-token reply, so Ollama loads the model if needed and keeps these messages in its cache.
+
+        A later prompt that starts with the same messages only has to read what comes after them.
+        """
+        start = time.perf_counter()
+        response = await self._client.chat(
+            model=self.settings.model,
+            messages=list(messages),
+            options={"temperature": self.settings.temperature, "num_predict": 1},
+            keep_alive=self.settings.keep_alive,
+        )
+        self._report(label, ReplyStats.from_response(response), start)
 
     async def load_model(self, system_prompt: str = "") -> None:
         """Load the model and run one tiny reply, so the first real reply doesn't pay for the model's first pass.
@@ -57,29 +80,37 @@ class LLMEngine:
         Given the system prompt, Ollama also keeps it cached for the first turn.
         """
         messages = [{"role": "system", "content": system_prompt}] if system_prompt else [{"role": "user", "content": "Hi"}]
-        await self._client.chat(
-            model=self.settings.model,
-            messages=messages,
-            options={"temperature": self.settings.temperature, "num_predict": 1},
-            keep_alive=self.settings.keep_alive,
-        )
+        await self.warm_up(messages, label="load")
 
     async def stream_chat(
-        self, messages: Sequence[Mapping[str, str]], *, on_stats: Callable[[ReplyStats], None] | None = None
+        self,
+        messages: Sequence[Mapping[str, str]],
+        *,
+        on_stats: Callable[[ReplyStats], None] | None = None,
+        label: str = "reply",
     ) -> AsyncIterator[str]:
-        """Yield the reply's text as Ollama generates it. on_stats gets Ollama's timings at the end."""
+        """Yield the reply's text as Ollama generates it. on_stats gets Ollama's timings at the end.
+
+        Closing the iterator early (aclose, or contextlib.aclosing) closes the connection, and Ollama stops
+        generating.
+        """
+        start = time.perf_counter()
         stream = await self._client.chat(
             model=self.settings.model,
             messages=list(messages),
             stream=True,
-            options={"temperature": self.settings.temperature, "num_predict": self.settings.num_predict},
+            options=self._options(self.settings.temperature, self.settings.num_predict),
             keep_alive=self.settings.keep_alive,
         )
-        async for part in stream:
-            if part.message.content:
-                yield part.message.content
-            if part.done and on_stats:
-                on_stats(ReplyStats.from_response(part))
+        async with aclosing(stream):
+            async for part in stream:
+                if part.message.content:
+                    yield part.message.content
+                if part.done:
+                    stats = ReplyStats.from_response(part)
+                    if on_stats:
+                        on_stats(stats)
+                    self._report(label, stats, start)
 
     async def complete(
         self,
@@ -88,16 +119,29 @@ class LLMEngine:
         temperature: float,
         num_predict: int,
         json_schema: dict | None = None,
+        label: str = "complete",
     ) -> str:
         """One whole reply without streaming, for the output filter's classifier and replacer calls."""
+        start = time.perf_counter()
         response = await self._client.chat(
             model=self.settings.model,
             messages=list(messages),
             format=json_schema,
-            options={"temperature": temperature, "num_predict": num_predict},
+            options=self._options(temperature, num_predict),
             keep_alive=self.settings.keep_alive,
         )
+        self._report(label, ReplyStats.from_response(response), start)
         return response.message.content or ""
 
     async def close(self) -> None:
         await self._client.close()
+
+    def _options(self, temperature: float, num_predict: int) -> dict:
+        options = {"temperature": temperature, "num_predict": num_predict}
+        if self.settings.seed is not None:
+            options["seed"] = self.settings.seed
+        return options
+
+    def _report(self, label: str, stats: ReplyStats, start: float) -> None:
+        if self.on_call:
+            self.on_call(label, stats, time.perf_counter() - start)
