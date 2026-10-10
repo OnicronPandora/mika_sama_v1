@@ -14,14 +14,16 @@ def test_the_shipped_personality_file_is_valid():
 
 
 def test_prompt_layers_come_in_order():
-    prompt = build_system_prompt(MIKA, traits=["Loves rainy days", "  "])
-    order = [prompt.index(part) for part in ("You are Mika.", "- Be kind.", "- Loves rainy days", "How to reply:")]
+    prompt = build_system_prompt(MIKA, traits=["Loves rainy days", "  "], stream_rules="Stream rules: be nice.")
+    parts = ("You are Mika.", "- Be kind.", "- Loves rainy days", "Stream rules: be nice.", "How to reply:")
+    order = [prompt.index(part) for part in parts]
     assert order == sorted(order)
     assert "-   " not in prompt  # blank traits are dropped
 
 
-def test_no_learned_traits_section_without_traits():
-    assert "learned" not in build_system_prompt(MIKA)
+def test_no_learned_traits_or_rules_sections_without_them():
+    prompt = build_system_prompt(MIKA)
+    assert "learned" not in prompt and "Stream rules" not in prompt
 
 
 def test_reply_rules_list_every_emotion_tag():

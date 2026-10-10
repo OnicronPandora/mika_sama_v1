@@ -5,6 +5,9 @@ from pydantic import Field, model_validator
 from .base import Contract, NonEmptyStr
 from .enums import Emotion, FilterAction, Intent
 
+# Admin input (chatbox and voice) always uses this user_id (decision #22).
+ADMIN_USER_ID = "admin"
+
 
 class UserRequest(Contract):
     """Request payload (Acer -> Mac). The server builds history, RAG context and the prompt itself."""

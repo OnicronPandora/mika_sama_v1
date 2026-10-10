@@ -19,7 +19,7 @@ from mika_shared.payloads import FilterResult
 from ..config import SERVER_DIR, FilterSettings
 from ..llm.engine import LLMEngine
 from ..personality.engine import Personality
-from .ai_classifier import SafetyClassifier, load_filter_policy
+from .ai_classifier import FilterPolicy, SafetyClassifier, load_filter_policy
 from .context import TurnContext
 from .hard_rules import ProhibitedWords
 from .replacer import Replacer
@@ -81,11 +81,13 @@ class OutputFilter:
         return self._rng.choice(self.fallbacks)
 
 
-def build_output_filter(engine: LLMEngine, personality: Personality, settings: FilterSettings) -> OutputFilter:
+def build_output_filter(
+    engine: LLMEngine, personality: Personality, settings: FilterSettings, policy: FilterPolicy | None = None
+) -> OutputFilter:
     """The filter as configured by the files in data/ (read once, at startup)."""
     return OutputFilter(
         words=ProhibitedWords.from_file(),
-        classifier=SafetyClassifier(engine, load_filter_policy(), settings, streamer=personality.name),
+        classifier=SafetyClassifier(engine, policy or load_filter_policy(), settings, streamer=personality.name),
         replacer=Replacer(engine, settings, persona=f"{personality.name}, {personality.role}"),
         fallbacks=load_fallbacks(),
         filtered_prefix=settings.filtered_prefix,

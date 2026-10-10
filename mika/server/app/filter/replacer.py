@@ -5,6 +5,8 @@
   "Filtered!".
 
 Both return None when the LLM fails, times out or gives nothing usable; the caller then uses a fallback line.
+Like the classifier, it asks either with its own prompt ("separate") or by continuing Mika's conversation
+("shared", FilterSettings.context_mode). Either way the LLM never sees the filtered sentence itself.
 """
 
 import asyncio
@@ -13,8 +15,25 @@ from ..config import FilterSettings
 from ..llm.chunker import SentenceChunker
 from ..llm.engine import LLMEngine
 from ..llm.tag_parser import EmotionTagParser
+from .ai_classifier import FILTER_NOTE
 from .context import TurnContext
 from .normalizer import TextNormalizer
+
+REWRITE = (
+    "Your next sentence was blocked because it contained a prohibited word. "
+    "Say one short sentence that carries on the conversation safely instead, without that word."
+)
+DEFLECT = (
+    "Your last sentence was filtered as unsuitable for the stream ({reason}). "
+    "Say one short, light-hearted sentence that steers the conversation somewhere else, "
+    "without repeating or describing what was filtered."
+)
+SHARED_DEFLECT = (
+    "Your next sentence was filtered as unsuitable for the stream ({reason}). "
+    "Say one short, light-hearted sentence that steers the conversation somewhere else, "
+    "without repeating or describing what was filtered."
+)
+ONLY_THE_SENTENCE = "Output only that sentence, without emojis, an emotion tag or stage directions."
 
 
 def clean_line(text: str) -> str:
@@ -33,36 +52,39 @@ class Replacer:
 
     async def rewrite(self, context: TurnContext) -> str | None:
         """For BLOCK. The prohibited word itself is never shown to the LLM."""
-        return await self._ask(
-            "Your next sentence was blocked because it contained a prohibited word. "
-            "Say one short sentence that carries on the conversation safely instead, without that word.",
-            context,
-        )
+        return await self._ask(REWRITE, REWRITE, context, label="rewrite")
 
     async def deflect(self, context: TurnContext, reason: str) -> str | None:
         """For REPLACE."""
         return await self._ask(
-            f"Your last sentence was filtered as unsuitable for the stream ({reason}). "
-            "Say one short, light-hearted sentence that steers the conversation somewhere else, "
-            "without repeating or describing what was filtered.",
-            context,
+            DEFLECT.format(reason=reason), SHARED_DEFLECT.format(reason=reason), context, label="deflect"
         )
 
-    async def _ask(self, instruction: str, context: TurnContext) -> str | None:
-        system = (
-            f"You are {self._persona}, speaking out loud on a live stream. {instruction} "
-            "Output only that sentence, without emojis, an emotion tag or stage directions."
-        )
+    def messages(self, instruction: str, shared_instruction: str, context: TurnContext) -> list[dict[str, str]]:
+        if self._settings.context_mode == "shared":
+            if not context.prompt:
+                raise ValueError("the shared replacer needs the turn's prompt (TurnContext.prompt)")
+            return [
+                *context.prompt,
+                {"role": "assistant", "content": context.reply_with()},  # what she said before the filtered sentence
+                {"role": "user", "content": f"{FILTER_NOTE} {shared_instruction} {ONLY_THE_SENTENCE}"},
+            ]
+        system = f"You are {self._persona}, speaking out loud on a live stream. {instruction} {ONLY_THE_SENTENCE}"
         user = (
             f"Viewer message: {context.user_message}\n"
             f"What you have said so far in this reply: {context.reply_so_far or '(nothing yet)'}"
         )
+        return [{"role": "system", "content": system}, {"role": "user", "content": user}]
+
+    async def _ask(self, instruction: str, shared_instruction: str, context: TurnContext, *, label: str) -> str | None:
+        messages = self.messages(instruction, shared_instruction, context)
         try:
             async with asyncio.timeout(self._settings.replacer_timeout):
                 answer = await self._engine.complete(
-                    [{"role": "system", "content": system}, {"role": "user", "content": user}],
+                    messages,
                     temperature=0.7,
                     num_predict=self._settings.replacer_num_predict,
+                    label=label,
                 )
         except Exception:  # timeout or LLM error: the caller falls back (CancelledError still propagates)
             return None

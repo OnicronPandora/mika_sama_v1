@@ -232,6 +232,8 @@ __marimo__/
 
 # --- Logs (the template already ignores *.log) ---
 logs/
+# Rotated server logs (server.log.1, server.log.2, ...)
+*.log.*
 
 # --- Frontend ---
 node_modules/

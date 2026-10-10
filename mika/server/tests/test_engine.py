@@ -15,23 +15,27 @@ class FakeOllama:
         self.pieces = pieces
         self.calls: list[tuple[str, dict]] = []
         self.closed = False
+        self.stream_closed = False  # True once a reply stream is closed (Ollama stops generating)
 
     async def chat(self, **kwargs):
         self.calls.append(("chat", kwargs))
         if not kwargs.get("stream"):
-            return part("", total_duration=1)
+            return part("", total_duration=1, prompt_eval_count=10, eval_count=1)
 
         async def stream():
-            for piece in self.pieces:
-                yield part(piece)
-            yield part(
-                "",
-                load_duration=0,
-                prompt_eval_count=400,
-                prompt_eval_duration=2_000_000_000,
-                eval_count=50,
-                eval_duration=5_000_000_000,
-            )
+            try:
+                for piece in self.pieces:
+                    yield part(piece)
+                yield part(
+                    "",
+                    load_duration=0,
+                    prompt_eval_count=400,
+                    prompt_eval_duration=2_000_000_000,
+                    eval_count=50,
+                    eval_duration=5_000_000_000,
+                )
+            finally:
+                self.stream_closed = True
 
         return stream()
 
@@ -80,3 +84,38 @@ async def test_the_real_client_has_timeouts():
     timeout = engine._client._client.timeout  # the httpx client inside ollama.AsyncClient
     assert (timeout.read, timeout.connect) == (45, 3)
     await engine.close()
+
+
+async def test_every_call_is_reported_with_its_label():
+    calls = []
+    engine = LLMEngine(LLMSettings(), client=FakeOllama(["Hi!"]), on_call=lambda *call: calls.append(call))
+    assert [piece async for piece in engine.stream_chat([])] == ["Hi!"]
+    await engine.complete([], temperature=0, num_predict=60, label="classify")
+    await engine.warm_up([], label="prewarm")
+    assert [label for label, _, _ in calls] == ["reply", "classify", "prewarm"]
+    assert calls[0][1].prompt_tokens == 400 and calls[1][1].prompt_tokens == 10
+    assert all(seconds >= 0 for _, _, seconds in calls)
+
+
+async def test_warm_up_runs_a_one_token_reply_on_the_messages():
+    client = FakeOllama([])
+    messages = [{"role": "system", "content": "You are Mika."}, {"role": "user", "content": "Hi"}]
+    await LLMEngine(LLMSettings(), client=client).warm_up(messages)
+    _, kwargs = client.calls[0]
+    assert (kwargs["messages"], kwargs["options"]["num_predict"], kwargs["keep_alive"]) == (messages, 1, -1)
+
+
+async def test_closing_a_reply_early_closes_ollamas_stream():
+    client = FakeOllama(["[happy]", " Hi", " there!"])
+    stream = LLMEngine(LLMSettings(), client=client).stream_chat([])
+    assert await anext(stream) == "[happy]"
+    await stream.aclose()
+    assert client.stream_closed
+
+
+async def test_a_fixed_seed_is_sent_when_set():
+    client = FakeOllama(["Hi!"])
+    engine = LLMEngine(LLMSettings(seed=42), client=client)
+    [piece async for piece in engine.stream_chat([])]
+    await engine.complete([], temperature=0, num_predict=60)
+    assert [kwargs["options"].get("seed") for _, kwargs in client.calls] == [42, 42]
