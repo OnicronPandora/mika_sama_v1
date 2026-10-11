@@ -15,11 +15,12 @@
 
 ## 2. Implementation Status
 
-**Phases 0–6 of [implementation_plan.md](implementation_plan.md) are complete.** The spikes are done (results in the plan) and the shared contracts exist. The Mac server runs (`python -m app`): it answers the Acer's messages on `/ws/runtime` with whole turns (prompt with history and memories, Ollama stream, emotion, output filter per sentence, logging, memory) and shuts down cleanly on Ctrl+C, even mid-turn. Measured on the Mac, Mika's first sentence is approved about 9 s after a message. The client (Phase 7) and frontend don't exist yet.
+**Phases 0–6 of [implementation_plan.md](implementation_plan.md) are complete.** The spikes are done (results in the plan) and the shared contracts exist. The Mac server runs (`python -m app`): it answers the Acer's messages on `/ws/runtime` with whole turns (prompt with history and memories, Ollama stream, emotion, output filter per sentence, logging, memory) and shuts down cleanly on Ctrl+C, even mid-turn. Measured on the Mac, Mika's first sentence is approved about 9 s after a message. The Acer client (Phase 7) is built: it speaks with GenieTTS, listens with silero-vad and Whisper, and serves the browser pages, which (Phase 9) don't exist yet.
 
 - `mika/` so far holds:
   - `mika/shared`: the `mika-shared` package with its tests;
   - `mika/server`: the Mac server (config, database, personality, LLM core, output filter, memory, the turn pipeline, `/ws/runtime`, startup and shutdown, `server.log`) and its tests;
+  - `mika/client`: the Acer client (connection to the Mac, GenieTTS, speech to text, the half-duplex mic gate, `/ws/chat` for the pages) and its tests;
   - `mika/frontend/src/types/events.ts`: the TypeScript types generated from `mika/shared`.
 
   An earlier version of this file described a full scaffold under `mika/`; that scaffold never existed on disk.
@@ -27,7 +28,7 @@
   - **Mac (the real one):** PostgreSQL 18 from the EnterpriseDB installer (`/Library/PostgreSQL/18`, port 5432), with pgvector 0.8.6 built from source. Databases `mika` and `mika_test`. Homebrew's `postgresql@17` was installed on 2026-09-30 but is unused and stopped.
   - **Acer (tests):** PostgreSQL 16 + pgvector 0.6.0 inside WSL Ubuntu, on port 5433. The Windows PostgreSQL 16 service on port 5432 belongs to other projects.
 - The folder is a **git repository** with remote [github.com/OnicronPandora/mika_sama_v1](https://github.com/OnicronPandora/mika_sama_v1) (MIT license). Work is pushed to `dev-mode`, and the admin merges it into `main` through a pull request. `.gitignore` is GitHub's Python template plus project rules that keep out `others/`, Cubism Core, `.conda/`, `node_modules/`, secrets, logs, and the local agent skill library (`skills/`, `.agent/`, `.agents/`).
-- The Acer has a project conda env at `.conda/` (Python 3.11.9) with `genie-tts` 2.0.2, `ollama` 0.6.2, `mika-shared` (editable) and the server's requirements.
+- The Acer has a project conda env at `.conda/` (Python 3.11.9) with `mika-shared` (editable) and the server's and client's requirements (`genie-tts` 2.0.2, `faster-whisper` 1.2.1, `fastembed` 0.8.1, `ollama` 0.6.2, ...). Whisper `small.en` is downloaded in `mika/client/.cache` (git-ignored).
 - `spikes/` holds the Phase 0 experiments; their results are recorded in the implementation plan.
 
 ---
@@ -51,6 +52,7 @@ mika_sama_project_v1/
 ├── mika/
 │   ├── shared/                             # mika-shared: enums, payloads, WS events, TS codegen, tests
 │   ├── server/                             # The Mac server: turn pipeline, /ws/runtime, filter, memory, DB, tests
+│   ├── client/                             # The Acer client: voice, listening, /ws/chat, connection to the Mac, tests
 │   └── frontend/src/types/events.ts        # Generated from mika/shared (do not edit by hand)
 │
 ├── others/

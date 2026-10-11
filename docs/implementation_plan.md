@@ -1,6 +1,6 @@
 # Mika-sama v1 — Implementation Plan
 
-> **Status: approved 2026-09-27. Phases 0–6 complete** (spikes; shared contracts; database and config; LLM core; output filter; memory and prompt; server wiring). Next: Phase 7.
+> **Status: approved 2026-09-27. Phases 0–6 complete** (spikes; shared contracts; database and config; LLM core; output filter; memory and prompt; server wiring). **Phase 7 (Acer client) built**; its live check with the Mac and the microphone is next, then Phase 8.
 > Based on [top_secret.md](top_secret.md) as of 2026-09-27. If this plan and the spec disagree, the spec wins, and this plan gets fixed.
 
 ---
@@ -39,7 +39,7 @@ All defaults below were confirmed at review. Changing one later means updating t
 | Mac M1 | Ollama | 11434 | `llama3.1:8b` only. `OLLAMA_NUM_PARALLEL=1`: the 8 GB M1 has no memory for a second slot (Spike A). Embeddings run on the CPU inside the server process (#23). |
 | Mac M1 | PostgreSQL + pgvector | 5432 | Local only; not exposed to the LAN. |
 | Mac M1 | Server (FastAPI, `/ws/runtime`) | 8000 | Only the Acer connects. |
-| Acer | Client (FastAPI, `/ws/chat`) | 8001 | Connects to the Mac as a WS client; serves `/ws/chat` to the browser. |
+| Acer | Client (FastAPI, `/ws/chat`) | 8001 | Connects to the Mac as a WS client; serves `/ws/chat` to the browser on this machine (listens on 127.0.0.1 only). |
 | Acer | Frontend (Vite dev server) | 5173 | `/avatar` (OBS browser source) and `/admin` (chatbox). |
 
 ---
@@ -81,15 +81,19 @@ mika/
 │   └── .env.example
 ├── client/                     # Acer
 │   ├── app/
-│   │   ├── main.py
-│   │   ├── config.py           # SERVER_WS_URL, VOICE_MODEL, REF_VOICE_PATH, REF_TEXT
-│   │   ├── api/ws_chat.py      # Browser bridge
+│   │   ├── __main__.py         # python -m app: uvicorn on 127.0.0.1:8001, client.log, clean Ctrl+C
+│   │   ├── main.py             # FastAPI app, lifespan, /health, CORS
+│   │   ├── services.py         # Background tasks in one TaskGroup; the models load in the background
+│   │   ├── config.py           # SERVER_WS_URL, VOICE_MODEL, REF_VOICE_PATH, REF_TEXT, listening settings
+│   │   ├── relay.py            # Routing between the Mac, the pages, the voice and the microphone
+│   │   ├── api/ws_chat.py      # Browser bridge: ?page=avatar or ?page=admin, Origin check
 │   │   ├── ws/connector.py     # Client of /ws/runtime (reconnects)
-│   │   ├── tts/engine.py       # GenieTTS
-│   │   ├── stt/                # vad.py, engine.py, gate.py (half-duplex mute)
-│   │   └── features/           # Empty in v1
+│   │   ├── tts/                # engine.py (GenieTTS, one sentence at a time), speaker.py (ordered audio for the page)
+│   │   └── stt/                # vad.py (silero-vad, RMS gate, utterances), engine.py (faster-whisper),
+│   │                           # gate.py (half-duplex mute), listener.py (microphone), check.py (mic check)
 │   ├── tests/
-│   └── requirements.txt
+│   ├── requirements.txt, requirements-dev.txt, pytest.ini
+│   └── README.md               # Setup, running, the mic check
 └── frontend/                   # React + TS + Vite
     └── src/
         ├── pages/AvatarPage.tsx, AdminPage.tsx
@@ -122,6 +126,8 @@ Common rules: `seq` is 0-based. Text fields must not be blank (surrounding white
 
 ### 5.2 `/ws/chat` (Browser ⇄ Acer)
 
+A page says which one it is when it connects: `/ws/chat?page=avatar` or `/ws/chat?page=admin` (Phase 7).
+
 | Direction | `type` | Fields | Meaning |
 |-----------|--------|--------|---------|
 | Admin page → Acer | `admin_message` | `message` | The Acer wraps it as `user_message` with `user_id = "admin"`. |
@@ -131,6 +137,7 @@ Common rules: `seq` is 0-based. Text fields must not be blank (surrounding white
 | Avatar page → Acer | `playback_started` | `turn_id`, `seq` | |
 | Avatar page → Acer | `playback_finished` | `turn_id`, `seq` | When `seq == last_seq`, the Acer unmutes STT. |
 | Acer → Admin page | `transcript` | `role` (`admin` / `mika`), `text` | Chat log shown in the admin page. |
+| Acer → Admin page | `notice` | `text` | A problem worth showing: a message that couldn't reach the Mac, or the Mac's `error` (added in Phase 7). |
 
 ---
 
@@ -371,10 +378,50 @@ Ways to cut the latency later (measured options, not decided):
     - "Separate" filtered one sentence, in turn 4. The bench didn't show the original then, so whether that was right is unknown; it now prints the reason and Mika's original reply.
     - The bench stays as a tool (`python -m app.turn.bench`, about 3 minutes; README): per-turn timings, why a sentence was filtered, and the 12 labeled verdicts as a check after editing `data/filter_policy.yaml`.
 
-### Phase 7 — Acer client
+### Phase 7 — Acer client (built 2026-10-11; the live check with the Mac and the microphone is the user's)
 - `/ws/runtime` connector with reconnect, GenieTTS worker (in a thread so it doesn't block the event loop), `/ws/chat` bridge, STT (VAD + RMS gate + faster-whisper), half-duplex gate driven by `turn_start` / `playback_finished` / `error`.
 - The TTS worker synthesizes the next sentence while the current one plays, and applies the GenieTTS details from the Phase 0 results.
 - **Done when:** with the real server, a typed message produces `audio_chunk` events in order, and speaking into the mic sends a `user_message`. The mic stays muted until the last `playback_finished` arrives.
+- **Result:** [mika/client](../mika/client/README.md), 35 tests, plus 2 opt-in ones with the real GenieTTS and Whisper (`MIKA_TEST_VOICE=1`, `MIKA_TEST_STT=1`). The server's 272 tests and the shared 42 still pass.
+  - **End to end on the Acer** (2026-10-11). The setup:
+    - the real server: `llama3:latest` on the Acer's CPU (it has no `llama3.1:8b`), with the WSL dev database;
+    - the real client: GenieTTS, Whisper `small.en` and silero-vad;
+    - simulated avatar and admin pages;
+    - a question recorded with GenieTTS, played into the listener instead of the microphone.
+
+    What happened:
+    - The spoken "Hi Mika! What game should we play on stream tonight?" was transcribed exactly. It went to the Mac as a `voice` message 7 s after it started (3.2 s of speech, 0.7 s of silence to end it, 1.6 s for Whisper).
+    - Mika's 5 sentences reached the avatar page as audio chunks in order, with the emotion first and `turn_end` last. A typed message then did the same with 2 sentences.
+    - Both times the mic was muted from the message until 0.5 s after the page finished playing the last sentence.
+    - Both processes shut down cleanly.
+
+    The Acer's CPU served Ollama too, so timings there mean little. One thing worth noting: the typed turn's emotion came 1.4 s after the message, thanks to the server's warm-up between turns.
+  - **Run it:** `python -m app` from `mika/client`. It reaches the Mac at `ws://Pandoras-MacBook-Pro.local:8000/ws/runtime` (`ClientSettings.server_ws_url`) and keeps retrying. It serves the pages on 127.0.0.1:8001 and logs to `client.log`. `python -m app.stt.check` shows the microphone's level and what Whisper hears, without sending anything.
+  - **Voice** (`app/tts`):
+    - GenieTTS's synthesis step runs in the client's own single worker thread, one sentence at a time with a 30 s timeout. Its player's async API can hand a timed-out sentence's audio to the next call, so it isn't used.
+    - Loading takes about 19 s (the model, the reference audio, a warm-up sentence), in the background, so the pages and the Mac connect at once.
+    - Sentences synthesize at about 0.8× real time. A sentence that fails becomes 0.3 s of silence carrying its text, so the page's order never breaks.
+  - **Listening** (`app/stt`):
+    - silero-vad from faster-whisper's bundled ONNX model, without PyTorch. It runs one 32 ms frame at a time with its state carried over, and a test shows the result matches faster-whisper's run over a whole recording.
+    - An RMS noise gate (0.005).
+    - Utterances start after 0.1 s of speech, end after 0.7 s of silence, and keep 0.3 s from before the start.
+    - Whisper `small.en` (chosen 2026-10-11), int8 on 4 threads, takes about 1.6 s for a 3 s sentence.
+    - It listens on the default microphone, a 4-channel Intel array that takes 16 kHz mono directly.
+  - **Half-duplex** (`app/stt/gate.py`):
+    - muted from each message, typed or spoken, until the avatar page reports that the reply's last sentence finished playing, plus 0.5 s;
+    - without an avatar page or a report: the reply's length plus 10 s;
+    - an error, or losing the Mac, unmutes at once.
+  - **Pages** (`app/api/ws_chat.py`):
+    - `?page=avatar` or `?page=admin`;
+    - origins limited to the Vite dev server's;
+    - several pages of each kind may be open;
+    - the Mac hears about them through `client_status`.
+  - **New event:** `notice` for the admin page (section 5.2). It carries a message that couldn't reach the Mac, or the Mac's `error`; before, the admin page had no way to show them.
+  - **The connection to the Mac** reconnects with a delay of 1 s growing to 10 s. After "replaced by a newer connection" (4001) it waits 30 s, so two clients don't keep knocking each other off.
+  - **Ctrl+C in the middle of a sentence:** the client stops at once (`tests/test_shutdown.py`, the same check as the server's).
+  - **Still to check, with the user:**
+    - the real microphone (`python -m app.stt.check`, to set the RMS gate);
+    - a live run against the Mac's server.
 
 ### Phase 8 — Live2D expressions
 - Write `happy`, `sad`, `confused`, `angry` and `neutral` `.exp3.json` using `ParamEyeLSmile/RSmile`, `ParamBrow*`, `ParamMouthForm`, `ParamCheek` (never `ParamMouthOpenY`), and register them in `model3.json`. Use the Overwrite blend for `ParamMouthForm`, because the motions animate it too.

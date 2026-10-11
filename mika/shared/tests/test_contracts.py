@@ -37,7 +37,7 @@ CHANNELS = {
     "chat_server": (
         events.ChatServerEvent,
         events.parse_chat_server_event,
-        {"emotion", "audio_chunk", "turn_end", "transcript"},
+        {"emotion", "audio_chunk", "turn_end", "transcript", "notice"},
     ),
 }
 
@@ -62,6 +62,7 @@ SAMPLES = {
         events.AudioChunk(turn_id=TURN, seq=0, text="Hi everyone!", audio_b64="UklGRg==", sample_rate=32000),
         events.ChatTurnEnd(turn_id=TURN, last_seq=0),
         events.Transcript(role=TranscriptRole.MIKA, text="Hi everyone!"),
+        events.Notice(text="The Mac isn't reachable, so Mika didn't get that message."),
     ],
 }
 

@@ -137,6 +137,12 @@ export interface Transcript {
   text: string;
 }
 
+/** A problem worth showing on the admin page, e.g. a message that couldn't reach the Mac. */
+export interface Notice {
+  type: 'notice';
+  text: string;
+}
+
 // ---- One union per channel direction ----
 
 /** /ws/runtime: Acer -> Mac */
@@ -149,4 +155,4 @@ export type RuntimeServerEvent = TurnStart | Sentence | TurnEnd | TurnError;
 export type ChatClientEvent = AdminMessage | PlaybackStarted | PlaybackFinished;
 
 /** /ws/chat: Acer -> browser */
-export type ChatServerEvent = EmotionUpdate | AudioChunk | ChatTurnEnd | Transcript;
+export type ChatServerEvent = EmotionUpdate | AudioChunk | ChatTurnEnd | Transcript | Notice;
