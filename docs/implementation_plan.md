@@ -1,6 +1,6 @@
 # Mika-sama v1 — Implementation Plan
 
-> **Status: approved 2026-09-27. Phases 0–6 complete** (spikes; shared contracts; database and config; LLM core; output filter; memory and prompt; server wiring). **Phase 7 (Acer client) built**; its live check with the Mac and the microphone is next, then Phase 8.
+> **Status: approved 2026-09-27. Phases 0–6 and 8 complete** (spikes; shared contracts; database and config; LLM core; output filter; memory and prompt; server wiring; Live2D expressions). **Phase 7 (Acer client) built**; its live check with the Mac and the microphone is still to do. Phase 9 (frontend pages) is next.
 > Based on [top_secret.md](top_secret.md) as of 2026-09-27. If this plan and the spec disagree, the spec wins, and this plan gets fixed.
 
 ---
@@ -94,16 +94,23 @@ mika/
 │   ├── tests/
 │   ├── requirements.txt, requirements-dev.txt, pytest.ini
 │   └── README.md               # Setup, running, the mic check
-└── frontend/                   # React + TS + Vite
+└── frontend/                   # TS + Vite (React arrives in Phase 9)
+    ├── package.json            # easy-live2d, pixi.js, Vite, TypeScript, Vitest: exact versions
+    ├── check.html              # Avatar check: each expression, and lipsync with it (Phase 8)
+    ├── live2d/expressions/     # happy, sad, confused, angry, neutral .exp3.json
+    ├── scripts/copy-model.mjs  # Puts the model together in public/models/miku before `npm run dev`
+    ├── README.md               # Setup (model, Cubism Core), the check page, the expression rules
     └── src/
-        ├── pages/AvatarPage.tsx, AdminPage.tsx
-        ├── components/Live2DStage.tsx, TranscriptOverlay.tsx, Chatbox.tsx
-        ├── audio/playbackQueue.ts, lipsync.ts
-        ├── services/chatSocket.ts
+        ├── pages/AvatarPage.tsx, AdminPage.tsx                             # Phase 9
+        ├── components/Live2DStage.tsx, TranscriptOverlay.tsx, Chatbox.tsx  # Phase 9
+        ├── live2d/             # avatar.ts (model, expressions, mouth), blink.ts, emotions.ts
+        ├── audio/              # lipsync.ts; playbackQueue.ts (Phase 9)
+        ├── services/chatSocket.ts                                          # Phase 9
+        ├── check/main.ts       # The avatar check page
         └── types/events.ts     # Generated from mika_shared (do not edit by hand)
 ```
 
-The Live2D model is copied from `others/2D/miku_pro/runtime/` into `frontend/public/models/`, along with the new `.exp3.json` files.
+The Live2D model and Cubism Core stay out of git (Live2D's licenses). `scripts/copy-model.mjs` copies the model from `others/2D/miku_pro/runtime/` into `frontend/public/models/miku/` (git-ignored) and registers the expressions from `live2d/expressions` in its `model3.json`.
 
 ---
 
@@ -423,12 +430,44 @@ Ways to cut the latency later (measured options, not decided):
     - the real microphone (`python -m app.stt.check`, to set the RMS gate);
     - a live run against the Mac's server.
 
-### Phase 8 — Live2D expressions
+### Phase 8 — Live2D expressions ✅ (2026-10-11)
 - Write `happy`, `sad`, `confused`, `angry` and `neutral` `.exp3.json` using `ParamEyeLSmile/RSmile`, `ParamBrow*`, `ParamMouthForm`, `ParamCheek` (never `ParamMouthOpenY`), and register them in `model3.json`. Use the Overwrite blend for `ParamMouthForm`, because the motions animate it too.
 - **Done when:** each expression shows correctly in the browser, and lipsync still moves the mouth with each expression active.
+- **Result:** [mika/frontend](../mika/frontend/README.md), the frontend's Vite project with Spike C's exact versions. It holds the five expressions, the code that drives the model, and an avatar check page. 26 tests pass (Vitest).
+  - **The expressions** (`live2d/expressions`, in git):
+
+    | Emotion | Eyes | Brows | Mouth (`ParamMouthForm`, Overwrite) | Cheeks |
+    |---|---|---|---|---|
+    | neutral | open | | the idle motions' smile (1) | |
+    | happy | smiling, ×0.6, so closed (^^) when the motion closes them | | smile (1) | blush 0.7 |
+    | sad | droopy (0.75) | lowered, inner ends up | frown (−0.6) | |
+    | angry | narrowed (0.8) | lowered fully, inner ends down | frown (−1) | |
+    | confused | open, glancing up and aside | one lowered and worried | flat (−0.2) | |
+
+    Each fades in and out over 0.5 s. The model and Cubism Core stay out of git; `scripts/copy-model.mjs` (run by `npm run dev`) copies the model into `public/models/miku` and registers the expressions in its `model3.json` under `FileReferences.Expressions`, each named after its emotion.
+  - **What the model itself dictated** (found on screen in the built-in Chromium browser):
+    - The brows hide under the bangs unless they're lowered. Only the lowered brows of sad, angry and confused show.
+    - **The three idle motions keep her eyes closed in a smile (^^) about 63% of the time, and never blink.** Motion 04 holds them closed for all of its 2.4 s, and motion 07 from 0.67 s to its end. A sad or angry face mostly showed closed eyes. So:
+      - every expression but happy sets the eyes' openness itself (Overwrite) and cancels the smile shape (`ParamEyeLSmile` 0);
+      - `src/live2d/blink.ts` makes her blink every 2–6 s, with Cubism's own timings (0.1 s closing, 0.05 s closed, 0.15 s opening). Each frame it multiplies the eyes' openness, after the motion and the expression: a parameter override of 0 with weight w gives value × (1 − w);
+      - `copy-model.mjs` removes the model's `EyeBlink` group. easy-live2d only runs Cubism's own eye blink in the frames between two idle motions, where it reopened sad or angry eyes for one frame. Measured with sad: before the change, the eyes reached 1.0 twice in 6 s; after it, they stayed at or below 0.75 for 10 s.
+    - So the expressions use two kinds of parameters beyond the list above: `ParamEyeLOpen/ROpen` (Overwrite, or Multiply for happy) and `ParamEyeBallX/Y` (Add, confused's glance). A head tilt for confused was dropped: the idle motions already tilt the head by up to ±30°.
+    - Neutral is a calm, open-eyed face with the motions' soft smile, so happy (smiling eyes, blush) and neutral look different.
+  - **Done-when check**, in the built-in Chromium browser:
+    - each expression was looked at with each of the three idle motions;
+    - with each expression active, the check page's test sound (3.2 s of syllables) went through the Web Audio lipsync. The mouth opened in about half the frames (up to 0.57), while the expression held: `ParamMouthForm` stayed at 1, −0.6, −1, −0.2 and 1 (neutral, the motions' value), and the brows, eye smile and blush didn't move.
+  - **Code for Phase 9:**
+    - `src/live2d/avatar.ts`: `createAvatar(canvas)` loads the model on a transparent canvas, starts neutral and blinking, and refuses a model with an emotion missing. Its methods are `setEmotion(emotion)`, `setMouth(0–1)` (it holds until the next call) and `frame(top, bottom)` (which part of the model fills the page). Mouse-follow is off.
+    - `src/audio/lipsync.ts`: Spike C's lipsync (RMS × 6, smoothed by half each frame), with `startLipsync(analyser, setMouth)`. Phase 9 tunes the gain with Mika's real voice.
+  - **Check it:** `npm run dev` in `mika/frontend`, then <http://localhost:5173/check.html>. It has a button per emotion, a test sound or any WAV for lipsync, and whole-body or face views (README).
+  - **Tests** (`npm test`): there is one file per emotion; none touches `ParamMouthOpenY`; parameters, ranges and blends follow the rules above; the files are plain ASCII without exponents, which Cubism's JSON parser needs. Also the blink timing and the lipsync math. A planted `ParamMouthOpenY` and an `Add` blend on `ParamMouthForm` both failed the tests. `npm run build` type-checks and bundles.
+  - **Notes for Phase 9:**
+    - At whole-body size in a 768-pixel-high page, her face is about 40 pixels tall, and only the mouth and the blush still read. The avatar page should frame the upper body (for example `frame(0.08, 0.55)`).
+    - An expression holds until the next `emotion` event. Decide whether she returns to neutral after a reply.
+    - A hidden browser tab pauses rendering. The model only loads once the page is shown (OBS's browser source renders all the time).
 
 ### Phase 9 — Frontend
-- Stack from Spike C: easy-live2d 1.0.0 + PixiJS 8 + Cubism Core from the SDK for Web R5 (git-ignored; each machine downloads it under Live2D's license). Reuse the Spike C lipsync code.
+- Stack from Spike C: easy-live2d 1.0.0 + PixiJS 8 + Cubism Core from the SDK for Web R5 (git-ignored; each machine downloads it under Live2D's license). Build on Phase 8's `src/live2d/avatar.ts` and `src/audio/lipsync.ts` (Spike C's lipsync).
 - `/avatar`: Live2D stage, expression switching, audio playback queue (in `seq` order), lipsync from a Web Audio `AnalyserNode` → `ParamMouthOpenY`, transcript line shown when its audio starts, `playback_*` events.
 - `/admin`: chatbox + transcript log.
 - A "click to enable audio" overlay for normal Chrome (OBS doesn't need it).

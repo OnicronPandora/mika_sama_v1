@@ -1,0 +1,22 @@
+{
+  "name": "mika-frontend",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "model": "node scripts/copy-model.mjs",
+    "predev": "node scripts/copy-model.mjs",
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "easy-live2d": "1.0.0",
+    "pixi.js": "8.21.0"
+  },
+  "devDependencies": {
+    "typescript": "7.0.2",
+    "vite": "8.3.1",
+    "vitest": "5.0.3"
+  }
+}
