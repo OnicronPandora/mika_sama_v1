@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Avatar check</title>
+    <style>
+      html, body { margin: 0; height: 100%; overflow: hidden; background: #2a2f3a; color: #eceff4; font: 14px system-ui, sans-serif; }
+      #stage { display: block; position: fixed; inset: 0; width: 100vw; height: 100vh; }
+      #panel { position: fixed; top: 12px; left: 12px; width: 236px; padding: 12px; border-radius: 8px; background: rgba(0, 0, 0, 0.6); }
+      #panel h1 { margin: 0 0 8px; font-size: 15px; }
+      #panel h2 { margin: 12px 0 4px; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: #b8c0cc; }
+      #panel button, #panel label { display: block; width: 100%; box-sizing: border-box; margin: 4px 0; padding: 6px 8px; border: 1px solid #5c6370; border-radius: 4px; background: #3b4252; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+      #panel button[aria-pressed='true'] { background: #5e81ac; border-color: #88c0d0; }
+      #panel input[type='file'] { display: none; }
+      #status { margin-top: 10px; white-space: pre-wrap; font: 12px ui-monospace, monospace; color: #b8c0cc; }
+    </style>
+  </head>
+  <body>
+    <canvas id="stage"></canvas>
+    <div id="panel">
+      <h1>Avatar check</h1>
+      <h2>Expression</h2>
+      <div id="emotions"></div>
+      <h2>Lipsync</h2>
+      <button id="talk">Talk (test sound)</button>
+      <label>Play a WAV file…<input id="wav" type="file" accept="audio/wav,.wav" /></label>
+      <h2>View</h2>
+      <button id="view-body" aria-pressed="true">Whole body</button>
+      <button id="view-face" aria-pressed="false">Face</button>
+      <div id="status">Loading…</div>
+    </div>
+    <!-- Cubism Core comes first (Live2D Proprietary Software License; see README.md). -->
+    <script src="/live2dcubismcore.min.js"></script>
+    <script type="module" src="/src/check/main.ts"></script>
+  </body>
+</html>
