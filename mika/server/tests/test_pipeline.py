@@ -27,10 +27,10 @@ MOCHI = "Pandora: I adopted a cat named Mochi.\nMika-sama: Mochi is adorable!"
 class Turns:
     """A TurnRunner with a scripted LLM and an in-memory archive, and the events of its last turn."""
 
-    def __init__(self, engine: FakeEngine, *, mode="separate", words=(), archive=None, reply_timeout=60.0) -> None:
+    def __init__(self, engine: FakeEngine, *, words=(), archive=None, reply_timeout=60.0) -> None:
         self.engine = engine
         self.archive = archive or MemoryArchive()
-        self.settings = fake_settings(mode=mode, reply_timeout=reply_timeout)
+        self.settings = fake_settings(reply_timeout=reply_timeout)
         self.state = StateManager(Personality(name="Mika-sama", role="AI VTuber", core_identity=SYSTEM, guidelines=[]))
         self.events: list = []
         output_filter = OutputFilter(
@@ -237,26 +237,3 @@ async def test_nothing_unchecked_is_sent_when_the_filter_breaks():
     assert [getattr(e, "text", None) for e in turns.events] == [None, "One.", None]
     assert turns.events[-1] == TurnEnd(turn_id=turns.turn_id, last_seq=0, intent=Intent.ERROR_RECOVERY)
     assert result.reply == "One."
-
-
-async def test_shared_mode_filter_calls_continue_the_turn_prompt():
-    engine = FakeEngine(
-        verdict(True), verdict(False, "threat"), "Anyway, games?", verdict(True),
-        replies=[["[happy] Hi Pandora! I will hurt you."]],
-    )  # fmt: skip
-    turns = Turns(engine, mode="shared")
-    await turns.say("Hi Mika!")
-    prompt = engine.streams[0]
-    assert all(call.messages[: len(prompt)] == prompt for call in engine.calls)  # Ollama reuses the prompt
-    first, second, deflect, recheck = engine.calls
-    assert [call.label for call in engine.calls] == ["classify", "classify", "deflect", "classify"]
-
-    def reply_part(call):
-        return call.messages[len(prompt)]
-
-    assert reply_part(first) == {"role": "assistant", "content": "[happy] Hi Pandora!"}
-    assert reply_part(second) == {"role": "assistant", "content": "[happy] Hi Pandora! I will hurt you."}
-    assert reply_part(deflect) == {"role": "assistant", "content": "[happy] Hi Pandora!"}  # never the filtered one
-    assert reply_part(recheck) == {"role": "assistant", "content": "[happy] Hi Pandora! Anyway, games?"}
-    assert '"I will hurt you."' in second.messages[-1]["content"]
-    assert turns.events[2].text == "Filtered! Anyway, games?"

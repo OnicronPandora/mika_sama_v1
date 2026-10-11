@@ -1,6 +1,5 @@
 from fakes import is_prompt_prefix
 
-from app.filter.ai_classifier import FilterPolicy
 from app.memory.cache import ConversationCache
 from app.memory.history import history_messages, history_text, merge_roles, turn_messages, turn_tokens
 from app.memory.prompt import CONTEXT_TOKENS, build_turn_messages, prefix_messages
@@ -39,8 +38,7 @@ NOTE = "[Note: the stream's filter changed your last reply (REPLACE). What you o
 def test_full_prompt_for_a_user_with_a_past_filtered_turn():
     """Plan, Phase 5 "done when": the whole prompt, message by message, exactly as the model reads it."""
     personality = Personality(name="Mika-sama", role="AI VTuber", core_identity="You are Mika-sama.", guidelines=["Be kind."])
-    rules = FilterPolicy(allowed=["teasing"], unsafe=["threats"]).prompt_section()
-    system_prompt = build_system_prompt(personality, traits=["Loves rainy days"], stream_rules=rules)
+    system_prompt = build_system_prompt(personality, traits=["Loves rainy days"])
     messages = build_turn_messages(
         system_prompt=system_prompt,
         history=history_messages([GREETING, SPICY]),
@@ -62,9 +60,7 @@ def test_full_prompt_for_a_user_with_a_past_filtered_turn():
             "How is Mochi doing?",
         },
     ]
-    parts = ["You are Mika-sama.", "- Loves rainy days", "Stream rules", "- threats", "emotion tag"]
-    positions = [system_prompt.index(part) for part in parts]
-    assert positions == sorted(positions)
+    assert system_prompt.index("You are Mika-sama.") < system_prompt.index("- Loves rainy days")
 
 
 def test_only_the_first_message_is_a_system_message():

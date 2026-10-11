@@ -121,7 +121,6 @@ class TurnRunner:
                 assistant=self._assistant,
                 max_turns=self._settings.memory.classifier_history_turns,
             ),
-            prompt=tuple(prompt),
         )
 
         await self._generate(reply, prompt, send)
@@ -205,7 +204,7 @@ class TurnRunner:
         Nothing unchecked is ever sent: if the filter itself breaks, the rest of the reply is dropped.
         """
         for sentence in reply.sentences:
-            check_context = replace(context, emotion=reply.emotion, reply_so_far=" ".join(reply.spoken))
+            check_context = replace(context, reply_so_far=" ".join(reply.spoken))
             try:
                 result = await self._output_filter.check(sentence, check_context)
             except Exception:

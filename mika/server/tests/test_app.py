@@ -34,7 +34,6 @@ async def test_startup_loads_everything_and_shutdown_closes_the_pool(schema_db, 
         assert (body["status"], body["database"]) == ("ok", "ok")
         assert body["services"] == {"database": "ok", "embeddings": "ok", "ollama": "ok"}
         assert "- Loves rainy days" in services.runner.system_prompt  # learned traits are read at startup
-        assert "Stream rules" in services.runner.system_prompt
         # Ollama was warmed up with the start of Pandora's next prompt (no history yet: the system prompt).
         assert services.engine.warm_ups == [[{"role": "system", "content": services.runner.system_prompt}]]
         async with services.pool.connection() as conn:  # every pool connection has the pgvector adapter

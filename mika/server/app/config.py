@@ -5,7 +5,6 @@ LLM settings are Python defaults from the spec (docs/top_secret.md).
 """
 
 from pathlib import Path
-from typing import Literal
 
 from psycopg.conninfo import make_conninfo
 from pydantic import BaseModel, ConfigDict, Field, SecretStr
@@ -55,7 +54,7 @@ class LLMSettings(BaseModel):
     read_timeout: float = 60.0  # longest wait for the next piece of a reply before giving up
     reply_timeout: float = 60.0  # one whole reply, prompt included (150 tokens at 10-11 tokens/s on the Mac)
     warm_up_timeout: float = 60.0  # loading the model (6-7 s) and reading a prompt, at startup and between turns
-    seed: int | None = None  # fixed sampling for measurements (app.turn.bench); None in normal use
+    seed: int | None = None  # fixed sampling for repeatable measurements (app.turn.bench); None in normal use
 
 
 class FilterSettings(BaseModel):
@@ -68,10 +67,6 @@ class FilterSettings(BaseModel):
     replacer_timeout: float = 12.0
     replacer_num_predict: int = 60
     filtered_prefix: str = "Filtered!"  # spoken before the LLM's line on REPLACE (spec)
-    # How the classifier and the replacer see the turn (Phase 6 experiment; compare with python -m app.turn.bench):
-    # - "separate": their own short prompts (Phase 4). Ollama has to read Mika's prompt again after them.
-    # - "shared": they continue Mika's own conversation, so Ollama reuses the prompt it already read for her reply.
-    context_mode: Literal["separate", "shared"] = "separate"
 
 
 class MemorySettings(BaseModel):
