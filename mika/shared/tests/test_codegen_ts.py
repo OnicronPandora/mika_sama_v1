@@ -25,4 +25,4 @@ def test_field_mappings():
     assert "  turn_id?: string | null;" in code  # TurnError: optional, may be null
     assert "  detail?: string | null;" in code
     assert "  sample_rate: number;" in code
-    assert "export type ChatServerEvent = EmotionUpdate | AudioChunk | ChatTurnEnd | Transcript;" in code
+    assert "export type ChatServerEvent = EmotionUpdate | AudioChunk | ChatTurnEnd | Transcript | Notice;" in code

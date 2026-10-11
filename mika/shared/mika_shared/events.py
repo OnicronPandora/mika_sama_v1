@@ -144,12 +144,19 @@ class Transcript(Contract):
     text: NonEmptyStr
 
 
+class Notice(Contract):
+    """A problem worth showing on the admin page, e.g. a message that couldn't reach the Mac."""
+
+    type: Literal["notice"] = "notice"
+    text: NonEmptyStr
+
+
 # ---- One union per channel direction ----
 
 RuntimeClientEvent = Annotated[UserMessage | ClientStatus, Field(discriminator="type")]
 RuntimeServerEvent = Annotated[TurnStart | Sentence | TurnEnd | TurnError, Field(discriminator="type")]
 ChatClientEvent = Annotated[AdminMessage | PlaybackStarted | PlaybackFinished, Field(discriminator="type")]
-ChatServerEvent = Annotated[EmotionUpdate | AudioChunk | ChatTurnEnd | Transcript, Field(discriminator="type")]
+ChatServerEvent = Annotated[EmotionUpdate | AudioChunk | ChatTurnEnd | Transcript | Notice, Field(discriminator="type")]
 
 _runtime_client = TypeAdapter(RuntimeClientEvent)
 _runtime_server = TypeAdapter(RuntimeServerEvent)
@@ -172,7 +179,7 @@ def parse_chat_client_event(data: str | bytes) -> AdminMessage | PlaybackStarted
     return _chat_client.validate_json(data)
 
 
-def parse_chat_server_event(data: str | bytes) -> EmotionUpdate | AudioChunk | ChatTurnEnd | Transcript:
+def parse_chat_server_event(data: str | bytes) -> EmotionUpdate | AudioChunk | ChatTurnEnd | Transcript | Notice:
     """Parse a /ws/chat message sent by the Acer."""
     return _chat_server.validate_json(data)
 

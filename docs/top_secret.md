@@ -92,7 +92,7 @@
 	+ Half-duplex: STT is muted while Mika speaks, so she never transcribes her own voice.
 	+ Because audio plays in the browser, the browser reports playback back to the Acer over /ws/chat (playback started / playback finished). The Acer mutes STT from the start of a reply until the browser reports that the reply's last audio chunk has finished.
 	+ Interrupting Mika while she speaks is out of scope for v1.
-	+ Transcription: faster-whisper on CPU (int8). Voice activity: silero-vad, with RMS as a noise gate.
+	+ Transcription: faster-whisper on CPU (int8), model small.en (English). Voice activity: silero-vad, with RMS as a noise gate.
 - TTS Engine: Use GenieTTS for CPU performance.
 - Audio and lipsync:
 	+ The Acer synthesizes each approved sentence with GenieTTS and sends the audio chunk, together with its sentence text and a sequence number, to the browser over /ws/chat.
@@ -170,3 +170,4 @@
 | 2026-10-04 | Classifier standard: teen-friendly. | — |
 | 2026-10-04 | Prohibited words list: written by Pandora (starts empty). | — |
 | 2026-10-04 | REPLACE's toast response is written by the LLM and re-checked; BLOCK's last-resort fallback lines are written by Pandora and also back up REPLACE. | "Filtered" + fixed toast lines |
+| 2026-10-11 | STT model: faster-whisper small.en (English only, like Mika's voice). | — |

@@ -1,0 +1,9 @@
+# Client (Acer). Install the shared contracts first:  pip install -e mika/shared
+fastapi==0.141.1
+uvicorn[standard]==0.54.0
+websockets==17.1
+numpy==2.4.6
+sounddevice==0.5.6
+genie-tts==2.0.2
+onnxruntime==1.22.1
+faster-whisper==1.2.1
