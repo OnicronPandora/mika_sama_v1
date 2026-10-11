@@ -2,8 +2,8 @@
 
     python -m app
 
-It listens on ServerSettings.host/port (0.0.0.0:8000, for the Acer) and logs to server.log. Ctrl+C stops it,
-even in the middle of a turn.
+It listens on ServerSettings.host/port (port 8000 on every interface, IPv4 and IPv6, for the Acer) and logs to
+server.log. Ctrl+C stops it, even in the middle of a turn.
 """
 
 import sys

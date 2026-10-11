@@ -99,7 +99,9 @@ class ServerSettings(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
-    host: str = "0.0.0.0"  # the Acer connects over the local network
+    # "" listens on every interface, IPv4 and IPv6: the Acer connects over the local network, and Windows may
+    # resolve the Mac's .local name to its IPv6 address only (seen 2026-10-11).
+    host: str = ""
     port: int = 8000
     # Browser pages allowed to open /ws/runtime or call the HTTP API (CORS doesn't cover WebSockets, so the
     # endpoint checks Origin itself). The Acer's Python client sends no Origin header and needs no entry.

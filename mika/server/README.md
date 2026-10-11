@@ -12,9 +12,9 @@ approved sentences, and saves the turn.
 python -m app
 ```
 
-It listens on port 8000 on every network interface, so the Acer can reach it (macOS may ask whether Python
-may accept incoming connections: allow it). It logs to `server.log` (git-ignored) and the console, and Ctrl+C
-stops it, even in the middle of a turn. Startup takes a few seconds: it loads the embedding model, and has
+It listens on port 8000 on every network interface, IPv4 and IPv6, so the Acer can reach it (macOS may ask
+whether Python may accept incoming connections: allow it). It logs to `server.log` (git-ignored) and the
+console, and Ctrl+C stops it, even in the middle of a turn. Startup takes a few seconds: it loads the embedding model, and has
 Ollama load `llama3.1:8b` and read Mika's prompt. It stops with an error if the database or Ollama can't be
 reached. `curl http://localhost:8000/health` reports the database, Ollama, the embeddings and the Acer's parts.
 
