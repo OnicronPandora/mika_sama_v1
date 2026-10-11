@@ -1,11 +1,14 @@
 # Mika-sama frontend (Acer)
 
-The browser side ([implementation plan](../../docs/implementation_plan.md)). So far (Phase 8), Mika's Live2D model with
-one expression per emotion, the code that drives it (expressions, blinking, lipsync), and a page to check them. The
-avatar and admin pages come in Phase 9.
+The browser pages ([implementation plan](../../docs/implementation_plan.md), Phases 8 and 9), served on the Acer by
+Vite and connected to the Acer client (`mika/client`) on `ws://127.0.0.1:8001/ws/chat`:
+- **`/avatar`**, for OBS or Chrome: Mika's Live2D model, her voice with lipsync, and a subtitle for the sentence she
+  is saying;
+- **`/admin`**, for Pandora: the chatbox, the conversation, and how the Acer client and the Mac are doing;
+- **`/check.html`**: each expression, and lipsync with it, without the client.
 
-Stack from Spike C, with exact versions: easy-live2d 1.0.0 + PixiJS 8.21 (WebGL 2) + Cubism Core 6.0.1 from the
-Cubism SDK for Web R5, served by Vite 8.
+Stack, with exact versions: React 19 + TypeScript, and from Spike C, easy-live2d 1.0.0 + PixiJS 8.21 (WebGL 2) +
+Cubism Core 6.0.1 from the Cubism SDK for Web R5, served by Vite 8.
 
 ## Setup (once, on the Acer)
 
@@ -29,18 +32,47 @@ npm run dev
 
 It first puts the model together in `public/models/miku` (git-ignored): the runtime files, plus the expressions
 from `live2d/expressions`, registered in its `model3.json`. Then Vite serves the pages on port 5173 (always 5173:
-the Acer client only accepts pages from it).
+the Acer client only accepts pages from it). <http://localhost:5173> links to them.
+
+The pages connect to the Acer client (`python -m app` in `mika/client`) and keep reconnecting, so the order you
+start things in doesn't matter. Mika answers once the client is connected to the Mac's server.
+
+## The avatar page
+
+<http://localhost:5173/avatar>, in OBS as a browser source (Phase 10) or in Chrome. Open it in one place only: every
+avatar page plays Mika's voice.
+- **Expression:** each reply's emotion, from the moment the Mac sends it. She keeps it until the next reply, and goes
+  back to neutral after 5 minutes without one (`EXPRESSION_HOLD_SECONDS` in `src/config.ts`).
+- **Voice and lipsync:** the sentences play one after another, in order; her mouth follows the audio's volume. The
+  page tells the client when each sentence starts and finishes playing: after the reply's last one, the client
+  turns the microphone back on.
+- **Subtitle:** each sentence appears when its audio starts, and fades 4 s after the reply's last one.
+- **Chrome** only plays audio after a click on the page, so it shows "Click to turn on Mika's voice" until it gets
+  one. A reply that arrives before that click shows its subtitles without sound (playing it later could happen
+  after the microphone is back on). OBS doesn't ask for a click.
+- **Framing:** the upper body, so that her expressions read on stream. `/avatar?top=0&bottom=1` shows the whole
+  body; `top` and `bottom` are fractions of the model's height. The page is transparent.
+
+In the browser console, `avatar` is the model (try `avatar.setEmotion('sad')`) and `audio` the Web Audio output.
+
+## The admin page
+
+<http://localhost:5173/admin>. Enter sends a message (Shift+Enter starts a new line). Your message shows in the
+conversation once it has reached the Mac; Mika's reply grows sentence by sentence as the Mac approves them. A
+notice says when something went wrong, for example "The Mac isn't reachable, so Mika didn't get that message."
+
+The bar on top comes from the client's `/health`: the client itself, the Mac, Mika's voice, listening, the
+microphone (muted while Mika answers) and the avatar page.
 
 ## Check the avatar
 
-Open <http://localhost:5173/check.html>. It shows Mika as the avatar page will, with her idle motions:
+<http://localhost:5173/check.html> shows Mika as the avatar page does, with her idle motions:
 - **Expression:** one button per emotion; each fades in over half a second.
 - **Lipsync:** "Talk" plays a buzzing test sound and her mouth follows it; "Play a WAV file…" does the same with
   any WAV, such as a GenieTTS sentence. The mouth should move with every expression.
 - **View:** the whole body, or her face.
 
-Nothing connects to the client; the page only exercises the model. In the browser console, `avatar` is the object
-the page drives.
+Nothing connects to the client; the page only exercises the model.
 
 ## Expressions
 
@@ -77,5 +109,6 @@ npm test
 npm run build
 ```
 
-`npm test` checks the expression files, the blink timing and the lipsync math. `npm run build` type-checks and
-bundles the pages into `dist/` (git-ignored).
+`npm test` checks the expression files, the blink timing, the lipsync math, the order in which the avatar page plays
+a reply and reports it, the 5-minute expression hold, the reconnecting socket and the admin page's log and status
+bar. `npm run build` type-checks and bundles the pages into `dist/` (git-ignored).
