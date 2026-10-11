@@ -1,0 +1,65 @@
+/* The avatar page: only Mika and her subtitle, on a transparent page that OBS lays over the stream. */
+.avatar-page {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  font-family: system-ui, sans-serif;
+}
+
+.live2d-stage canvas {
+  position: fixed;
+  inset: 0;
+  display: block;
+  width: 100vw;
+  height: 100vh;
+}
+
+.subtitle {
+  position: fixed;
+  left: 50%;
+  bottom: 5vh;
+  transform: translateX(-50%);
+  box-sizing: border-box;
+  width: max-content;
+  max-width: min(90vw, 60em);
+  padding: 0.45em 0.9em;
+  border-radius: 0.6em;
+  background: rgba(14, 17, 26, 0.75);
+  color: #fff;
+  font-size: clamp(16px, 3.4vh, 44px);
+  font-weight: 600;
+  line-height: 1.35;
+  text-align: center;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+  opacity: 0;
+  transition: opacity 0.4s ease;
+  pointer-events: none;
+}
+
+.subtitle.visible {
+  opacity: 1;
+}
+
+.audio-unlock {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  border: 0;
+  background: rgba(10, 12, 18, 0.55);
+  color: #fff;
+  font: 600 clamp(18px, 3vh, 32px) system-ui, sans-serif;
+  cursor: pointer;
+}
+
+.avatar-error {
+  position: fixed;
+  top: 1em;
+  left: 1em;
+  right: 1em;
+  margin: 0;
+  padding: 0.8em 1em;
+  border-radius: 0.5em;
+  background: #8c1d1d;
+  color: #fff;
+  font: 14px/1.4 ui-monospace, monospace;
+}

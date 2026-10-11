@@ -1,0 +1,210 @@
+/* The admin page and the home page. Everything is scoped to their root, so the avatar page stays transparent. */
+.admin-page,
+.home-page {
+  --bg: #f4f5f8;
+  --panel: #ffffff;
+  --text: #1d2330;
+  --muted: #687085;
+  --line: #dcdfe6;
+  --accent: #2f6fde;
+  --mika: #e9edf4;
+  --notice-bg: #fff3dc;
+  --notice-text: #744800;
+  --good: #1d8a4b;
+  --busy: #a86f00;
+  --bad: #c0392b;
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  .admin-page,
+  .home-page {
+    --bg: #14171e;
+    --panel: #1c2029;
+    --text: #e6e9ef;
+    --muted: #97a0b3;
+    --line: #2b3140;
+    --accent: #4a86f0;
+    --mika: #262b37;
+    --notice-bg: #3a2d10;
+    --notice-text: #f2cd85;
+    --good: #4cc27f;
+    --busy: #e2b04a;
+    --bad: #ff6b5e;
+  }
+}
+
+.admin-page {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font: 15px/1.5 system-ui, sans-serif;
+}
+
+.admin-page header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5em 1.5em;
+  padding: 0.75em 1.25em;
+  border-bottom: 1px solid var(--line);
+  background: var(--panel);
+}
+
+.admin-page h1 {
+  margin: 0;
+  font-size: 1.15em;
+}
+
+.status-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3em 1.1em;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.85em;
+}
+
+.status-bar li::before {
+  content: '';
+  display: inline-block;
+  width: 0.55em;
+  height: 0.55em;
+  margin-right: 0.4em;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.status-bar .good {
+  color: var(--good);
+}
+
+.status-bar .busy {
+  color: var(--busy);
+}
+
+.status-bar .bad {
+  color: var(--bad);
+}
+
+.status-bar .label {
+  color: var(--muted);
+}
+
+.transcript-log {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6em;
+  margin: 0;
+  padding: 1em 1.25em;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.transcript-log li {
+  max-width: min(46em, 85%);
+}
+
+.transcript-log .speaker {
+  display: block;
+  margin-bottom: 0.15em;
+  color: var(--muted);
+  font-size: 0.75em;
+}
+
+.transcript-log p {
+  margin: 0;
+  padding: 0.55em 0.85em;
+  border-radius: 0.8em;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.transcript-log .admin {
+  align-self: flex-end;
+  text-align: right;
+}
+
+.transcript-log .admin p {
+  background: var(--accent);
+  color: #fff;
+  text-align: left;
+}
+
+.transcript-log .mika p {
+  background: var(--mika);
+}
+
+.transcript-log .notice {
+  align-self: center;
+  text-align: center;
+}
+
+.transcript-log .notice p {
+  background: var(--notice-bg);
+  color: var(--notice-text);
+  font-size: 0.9em;
+}
+
+.transcript-log .empty {
+  align-self: center;
+  margin-top: 2em;
+  color: var(--muted);
+}
+
+.chatbox {
+  display: flex;
+  gap: 0.6em;
+  padding: 0.75em 1.25em 1em;
+  border-top: 1px solid var(--line);
+  background: var(--panel);
+}
+
+.chatbox textarea {
+  flex: 1;
+  padding: 0.6em 0.8em;
+  border: 1px solid var(--line);
+  border-radius: 0.6em;
+  background: var(--bg);
+  color: inherit;
+  font: inherit;
+  resize: none;
+}
+
+.chatbox button {
+  padding: 0 1.4em;
+  border: 0;
+  border-radius: 0.6em;
+  background: var(--accent);
+  color: #fff;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.chatbox button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.home-page {
+  box-sizing: border-box;
+  min-height: 100%;
+  padding: 2em;
+  background: var(--bg);
+  color: var(--text);
+  font: 16px/1.6 system-ui, sans-serif;
+}
+
+.home-page h1 {
+  margin-top: 0;
+}
+
+.home-page a {
+  color: var(--accent);
+}

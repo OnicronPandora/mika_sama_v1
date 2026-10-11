@@ -1,6 +1,6 @@
 # Mika-sama Project v1 — Analysis
 
-> Snapshot of the project folder as of **2026-10-11** (after Phase 8). The design itself lives in [top_secret.md](top_secret.md) (the authoritative spec); this file describes what actually exists on disk, how the docs relate to each other, and what is still undecided.
+> Snapshot of the project folder as of **2026-10-11** (after Phase 9). The design itself lives in [top_secret.md](top_secret.md) (the authoritative spec); this file describes what actually exists on disk, how the docs relate to each other, and what is still undecided.
 
 ## 1. What Is This Project?
 
@@ -15,13 +15,13 @@
 
 ## 2. Implementation Status
 
-**Phases 0–6 and 8 of [implementation_plan.md](implementation_plan.md) are complete; Phase 7 is built.** The spikes are done (results in the plan) and the shared contracts exist. The Mac server runs (`python -m app`): it answers the Acer's messages on `/ws/runtime` with whole turns (prompt with history and memories, Ollama stream, emotion, output filter per sentence, logging, memory) and shuts down cleanly on Ctrl+C, even mid-turn. Measured on the Mac, Mika's first sentence is approved about 9 s after a message. The Acer client (Phase 7) is built: it speaks with GenieTTS, listens with silero-vad and Whisper, and serves the browser pages over `/ws/chat`. The frontend (Phase 8) has Mika's Live2D model with one expression per emotion, her blinking and lipsync, and a page to check them; the avatar and admin pages come in Phase 9.
+**Phases 0–6, 8 and 9 of [implementation_plan.md](implementation_plan.md) are complete; Phase 7 is built.** The spikes are done (results in the plan) and the shared contracts exist. The Mac server runs (`python -m app`): it answers the Acer's messages on `/ws/runtime` with whole turns (prompt with history and memories, Ollama stream, emotion, output filter per sentence, logging, memory) and shuts down cleanly on Ctrl+C, even mid-turn. Measured on the Mac, Mika's first sentence is approved about 9 s after a message. The Acer client (Phase 7) is built: it speaks with GenieTTS, listens with silero-vad and Whisper, and serves the browser pages over `/ws/chat`. The frontend (Phases 8 and 9) has the avatar page for OBS (Mika's Live2D model with one expression per emotion, her voice with lipsync, subtitles), the admin page (chatbox, conversation, status), and a page to check the expressions. Checked end to end on the Acer with the real server and client; OBS is Phase 10.
 
 - `mika/` so far holds:
   - `mika/shared`: the `mika-shared` package with its tests;
   - `mika/server`: the Mac server (config, database, personality, LLM core, output filter, memory, the turn pipeline, `/ws/runtime`, startup and shutdown, `server.log`) and its tests;
   - `mika/client`: the Acer client (connection to the Mac, GenieTTS, speech to text, the half-duplex mic gate, `/ws/chat` for the pages) and its tests;
-  - `mika/frontend`: the Vite project with Mika's expressions (`live2d/expressions`), the code that drives the model (`src/live2d`, `src/audio/lipsync.ts`), the avatar check page, and the TypeScript types generated from `mika/shared`.
+  - `mika/frontend`: the React + Vite pages (`/avatar`, `/admin`, `/check.html`), Mika's expressions (`live2d/expressions`), and the TypeScript types generated from `mika/shared`.
 
   An earlier version of this file described a full scaffold under `mika/`; that scaffold never existed on disk.
 - Databases:
@@ -53,7 +53,7 @@ mika_sama_project_v1/
 │   ├── shared/                             # mika-shared: enums, payloads, WS events, TS codegen, tests
 │   ├── server/                             # The Mac server: turn pipeline, /ws/runtime, filter, memory, DB, tests
 │   ├── client/                             # The Acer client: voice, listening, /ws/chat, connection to the Mac, tests
-│   └── frontend/                           # Vite: expressions, avatar code, check page; src/types/events.ts is generated
+│   └── frontend/                           # React + Vite: /avatar, /admin, /check.html, expressions; src/types/events.ts is generated
 │
 ├── others/
 │   ├── 2D/miku_pro/                        # Live2D avatar (see 3.1)
@@ -264,7 +264,7 @@ sequenceDiagram
 | Validation | Pydantic v2 |
 | TTS | GenieTTS (CPU), `mikav3_onnx_model` |
 | STT | VAD + RMS |
-| Frontend | React + TypeScript + Vite, Live2D (Cubism), Web Audio for playback and lipsync |
+| Frontend | React 19 + TypeScript + Vite 8; Live2D through easy-live2d + PixiJS + Cubism Core (R5); Web Audio for playback and lipsync |
 | Streaming | OBS (browser source with audio) |
 | Config | YAML (personality), Python (system), `.env` (DB secrets) |
 | Fine-tuning (later) | Unsloth on Colab after 1000 conversations |

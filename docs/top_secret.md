@@ -83,6 +83,7 @@
 	+ The server buffers the start of the stream until the tag is closed, parses it, strips it from the text, and sends an emotion event to the Acer before the first sentence.
 	+ The tag is validated against the emotion schema. A missing or invalid tag falls back to `neutral` (the LLM is not the source of truth).
 	+ The Acer forwards the emotion event to the browser, which switches the Live2D expression.
+	+ The avatar keeps a reply's expression until the next reply. If no reply comes, it returns to neutral 5 minutes after Mika last spoke.
 - Live2D expressions:
 	+ Create one expression file (.exp3.json) per emotion in the emotion schema (happy, sad, confused, angry, neutral) and register them under `FileReferences.Expressions` in the model3.json.
 	+ Expressions must not change ParamMouthOpenY, because lipsync owns that parameter.
@@ -171,3 +172,4 @@
 | 2026-10-04 | Prohibited words list: written by Pandora (starts empty). | — |
 | 2026-10-04 | REPLACE's toast response is written by the LLM and re-checked; BLOCK's last-resort fallback lines are written by Pandora and also back up REPLACE. | "Filtered" + fixed toast lines |
 | 2026-10-11 | STT model: faster-whisper small.en (English only, like Mika's voice). | — |
+| 2026-10-11 | The avatar keeps a reply's expression until the next reply, and returns to neutral after 5 minutes without one. | — |

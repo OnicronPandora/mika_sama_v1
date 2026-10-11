@@ -1,6 +1,6 @@
 # Mika-sama v1 — Implementation Plan
 
-> **Status: approved 2026-09-27. Phases 0–6 and 8 complete** (spikes; shared contracts; database and config; LLM core; output filter; memory and prompt; server wiring; Live2D expressions). **Phase 7 (Acer client) built**; its live check with the Mac and the microphone is still to do. Phase 9 (frontend pages) is next.
+> **Status: approved 2026-09-27. Phases 0–6, 8 and 9 complete** (spikes; shared contracts; database and config; LLM core; output filter; memory and prompt; server wiring; Live2D expressions; frontend pages). **Phase 7 (Acer client) built**; its live check with the Mac and the microphone is still to do. Phase 10 (OBS and end to end) is next.
 > Based on [top_secret.md](top_secret.md) as of 2026-09-27. If this plan and the spec disagree, the spec wins, and this plan gets fixed.
 
 ---
@@ -40,7 +40,7 @@ All defaults below were confirmed at review. Changing one later means updating t
 | Mac M1 | PostgreSQL + pgvector | 5432 | Local only; not exposed to the LAN. |
 | Mac M1 | Server (FastAPI, `/ws/runtime`) | 8000 | Only the Acer connects. |
 | Acer | Client (FastAPI, `/ws/chat`) | 8001 | Connects to the Mac as a WS client; serves `/ws/chat` to the browser on this machine (listens on 127.0.0.1 only). |
-| Acer | Frontend (Vite dev server) | 5173 | `/avatar` (OBS browser source) and `/admin` (chatbox). |
+| Acer | Frontend (Vite dev server) | 5173 | `/avatar` (OBS browser source), `/admin` (chatbox), `/check.html` (avatar check). |
 
 ---
 
@@ -94,18 +94,21 @@ mika/
 │   ├── tests/
 │   ├── requirements.txt, requirements-dev.txt, pytest.ini
 │   └── README.md               # Setup, running, the mic check
-└── frontend/                   # TS + Vite (React arrives in Phase 9)
-    ├── package.json            # easy-live2d, pixi.js, Vite, TypeScript, Vitest: exact versions
+└── frontend/                   # React + TS + Vite (Acer)
+    ├── package.json            # React, easy-live2d, pixi.js, Vite, TypeScript, Vitest: exact versions
+    ├── index.html              # The app: /avatar, /admin, and / with links to the pages
     ├── check.html              # Avatar check: each expression, and lipsync with it (Phase 8)
     ├── live2d/expressions/     # happy, sad, confused, angry, neutral .exp3.json
     ├── scripts/copy-model.mjs  # Puts the model together in public/models/miku before `npm run dev`
-    ├── README.md               # Setup (model, Cubism Core), the check page, the expression rules
+    ├── README.md               # Setup (model, Cubism Core), the pages, the expression rules
     └── src/
-        ├── pages/AvatarPage.tsx, AdminPage.tsx                             # Phase 9
-        ├── components/Live2DStage.tsx, TranscriptOverlay.tsx, Chatbox.tsx  # Phase 9
-        ├── live2d/             # avatar.ts (model, expressions, mouth), blink.ts, emotions.ts
-        ├── audio/              # lipsync.ts; playbackQueue.ts (Phase 9)
-        ├── services/chatSocket.ts                                          # Phase 9
+        ├── main.tsx            # Picks the page from the URL
+        ├── config.ts           # The client's address; the pages' timings (5-minute expression hold, ...)
+        ├── pages/              # AvatarPage.tsx, AdminPage.tsx, HomePage.tsx
+        ├── components/         # Live2DStage, TranscriptOverlay (subtitle), AudioUnlock, Chatbox, TranscriptLog, StatusBar
+        ├── live2d/             # avatar.ts (model, expressions, mouth), blink.ts, emotions.ts, expressionHold.ts, core.ts
+        ├── audio/              # playbackQueue.ts (a reply in order, playback reports), output.ts (Web Audio), lipsync.ts
+        ├── services/           # chatSocket.ts (/ws/chat, reconnects), health.ts (the client's /health)
         ├── check/main.ts       # The avatar check page
         └── types/events.ts     # Generated from mika_shared (do not edit by hand)
 ```
@@ -472,6 +475,52 @@ Ways to cut the latency later (measured options, not decided):
 - `/admin`: chatbox + transcript log.
 - A "click to enable audio" overlay for normal Chrome (OBS doesn't need it).
 - **Done when:** a typed message makes Mika change expression, speak with moving lips, and show the transcript, in normal Chrome.
+- **Result (2026-10-11):** the pages are in [mika/frontend](../mika/frontend/README.md). 49 tests pass (Vitest), 23 of them new. Checked live on the Acer, with the real server and the real client (below).
+  - **`/avatar`**: Mika fills the page, transparent, for OBS. One component per part:
+    - `Live2DStage`, Phase 8's avatar;
+    - `TranscriptOverlay`, the subtitle;
+    - `AudioUnlock`, the click-to-enable overlay.
+
+    `audio/playbackQueue.ts` plays the Acer's events in the order they arrive: each turn's emotion, its audio chunks (decoded as they arrive, played one after another) and its `turn_end`. It reports `playback_started` and `playback_finished` for each chunk.
+    - **Expression (Pandora's decision, 2026-10-11):** Mika keeps a reply's expression until the next reply. With no new reply, she goes back to neutral 5 minutes after she last spoke (`ExpressionHold`; `EXPRESSION_HOLD_SECONDS` in `src/config.ts`).
+    - A queued turn's emotion waits until the turn before it has finished playing, so her face matches what she's saying.
+    - **Subtitle:** the sentence being spoken, shown when its audio starts (spec); it fades 4 s after the reply's last sentence.
+    - **Before Chrome's click:** a reply that arrives while the audio is locked counts as played at once. Its subtitles show without sound, and the page reports each sentence finished. Holding the audio back could play it after the Acer has reopened the microphone.
+    - **Framing:** the upper body (`top` 0.05 to `bottom` 0.6 of the model's height), so that her face is about 140 pixels tall in a 768-pixel page. `/avatar?top=0&bottom=1` shows the whole body, for other OBS layouts.
+    - **Cubism Core:** loaded only by the avatar page, before the Live2D code is imported (easy-live2d reads it at import time). A missing Core shows an error on the avatar page and leaves the admin page working; the Live2D code is a separate bundle.
+  - **`/admin`**: `Chatbox` (Enter sends, Shift+Enter starts a new line; an input method's Enter doesn't send) and `TranscriptLog`, where each reply's sentences share one bubble. Pandora's own message appears once the Acer has passed it to the Mac; otherwise a notice says why. `StatusBar` polls the client's `/health` every 2 s: the client, the Mac, voice, listening, the microphone, and the avatar page (warning if it's open twice, which would play Mika's voice twice).
+  - **Both pages** reconnect to the client on their own: after 1 s, doubling up to 10 s.
+  - **Choices:** no React StrictMode (it would load the model and open the audio and the socket twice in development); routing by path in `main.tsx`, without a router library.
+  - **Done-when check, live on the Acer** (2026-10-11). The setup:
+    - the real server: llama3:latest on the CPU and the WSL dev database (the Phase 7 setup);
+    - the real client: GenieTTS, Whisper and the half-duplex gate, with a silent microphone;
+    - the pages in the built-in Chromium browser, with a recorder in the avatar page that sampled the model's parameters every frame and the client's `/health` every 0.25 s.
+
+    | Typed on `/admin` | Emotion | Avatar reacts | First sentence plays | Mic reopens after the last sentence |
+    |---|---|---|---|---|
+    | "Mika, I have sad news: my cat ran away this morning." | sad | 4.7 s | 31 s | 0.5 s |
+    | "Good news, Mika! My cat just came back home!" | neutral | 2.1 s | 22 s | 0.5 s |
+    | "What should we name the cat's new toy?" (audio locked) | neutral | — | 22 s, silent | 0.5 s after the last chunk arrived |
+
+    - **Expression:** sad held through the reply and after it (`ParamMouthForm` −0.6, brows −0.5), then switched to neutral at the next turn's emotion. llama3 answered the good news with `[neutral]`; `llama3.1:8b` on the Mac decides that in real use.
+    - **Lipsync:** while she spoke, the mouth opening ran 0.11 / 0.56 / 0.93 (10th, 50th and 90th percentile), and only 7% of the frames were at 0.95 or more. Spike C's gain of 6 stays.
+    - **Subtitles:** every sentence appeared as its audio started.
+    - **Microphone:** muted from each message. It reopened 0.5 s (the echo guard) after the last sentence finished, so it was always the page's `playback_finished`, never the client's fallback timer. The client logged no "no playback report".
+    - **Admin page:** the conversation in order, with each reply in one bubble. After the server was stopped, the status bar showed "Mac not connected", and a message got the client's notice instead of reaching Mika.
+    - **Chrome's lock:** the built-in browser allows audio without a click, so the lock was imitated by suspending the audio. The overlay appeared, and one click resumed the audio and hid it.
+    - **Your Chrome:** the check in your own Chrome is quick: open `/avatar` and `/admin` with everything running.
+  - **Tests** (Vitest, 23 new):
+    - the playback order and its reports;
+    - a queued turn's emotion waiting for the turn before it;
+    - locked audio, chunks that fail to decode or play, closing;
+    - the 5-minute hold (expires, restarts when she speaks, replaced by the next reply, neutral needs no timer);
+    - the socket's reconnect waits (1, 2, 4, 8, 10, 10 s) and their reset;
+    - the admin log and status bar;
+    - the framing parameters.
+  - **Notes for Phase 10:**
+    - The OBS browser source opens `http://localhost:5173/avatar` with "Control audio via OBS" on. OBS needs no click.
+    - Keep the avatar page open in OBS only; a second one, such as a Chrome tab, would play Mika's voice too. The admin page warns.
+    - Confirm that OBS's browser source supports WebGL 2.
 
 ### Phase 10 — OBS and end to end
 - OBS browser source → `http://localhost:5173/avatar`, transparent background, "Control audio via OBS" on. Confirm WebGL 2 works in the browser source.
@@ -502,4 +551,4 @@ Ways to cut the latency later (measured options, not decided):
 | `original_reply` in the prompt context (decision #2) | The LLM may repeat filtered content | Track the `filter_incident` rate in `chat_logs` |
 | Cubism Core license and PixiJS/Live2D library versions | Frontend blocked | Resolved by Spike C: easy-live2d 1.0.0 + PixiJS 8 + R5 Core work together |
 | easy-live2d 1.0.0 is a very new major release (published 2026-09-24) | Bugs in the library | Pin the exact version. Untested fallbacks: easy-live2d 0.4.4 with an older Core (the library's documented option), or pixi-live2d-display |
-| Browser autoplay rules | No audio in normal Chrome | Click-to-enable overlay; OBS is not affected |
+| Browser autoplay rules | No audio in normal Chrome | Click-to-enable overlay (Phase 9); a reply before the click plays silently, so half-duplex holds; OBS is not affected |
